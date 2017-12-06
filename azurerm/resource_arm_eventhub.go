@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/arm/eventhub"
 	"github.com/hashicorp/terraform/helper/schema"
@@ -56,9 +57,74 @@ func resourceArmEventHub() *schema.Resource {
 				Set:      schema.HashString,
 				Computed: true,
 			},
+
+			"capture": &schema.Schema{
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"enabled": {
+							Type:     schema.TypeBool,
+							Required: true,
+						},
+						"encoding": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validateEventHubCaptureEncoding,
+						},
+						"time_limit": {
+							Type:        schema.TypeInt,
+							Description: "Maximimum time between writes (seconds)",
+							Required:    true,
+						},
+						"size_limit": {
+							Type:        schema.TypeInt,
+							Description: "Maximum buffering between writes (bytes)",
+							Required:    true,
+						},
+						"archive_name_format": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Default:  "{Namespace}/{EventHub}/{PartitionId}/{Year}/{Month}/{Day}/{Hour}/{Minute}/{Second}",
+						},
+						"destination": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validateEventHubCaptureDestination,
+						},
+						// Required when destination==AzureBlockBlob
+						"storage_account_resource_id": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"storage_blob_container_name": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						// Required when destination==AzureDataLake
+						"data_lake_subscription_id": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"data_lake_account_name": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+						"data_lake_folder_path": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+					},
+				},
+			},
 		},
 	}
 }
+
+const (
+	captureDestinationPrefix = "EventHubArchive."
+)
 
 func resourceArmEventHubCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient)
@@ -76,6 +142,70 @@ func resourceArmEventHubCreate(d *schema.ResourceData, meta interface{}) error {
 			PartitionCount:         &partitionCount,
 			MessageRetentionInDays: &messageRetention,
 		},
+	}
+
+	if v, ok := d.GetOk("capture"); ok {
+		captures := v.([]interface{})
+		if len(captures) > 0 {
+			capture := captures[0].(map[string]interface{})
+			enabled := capture["enabled"].(bool)
+
+			encodingName := capture["encoding"].(string)
+			var encoding eventhub.EncodingCaptureDescription
+
+			switch encodingName {
+			case "Avro":
+				encoding = eventhub.Avro
+			case "AvroDeflat":
+				encoding = eventhub.AvroDeflate
+			default:
+				return fmt.Errorf("Unknown Encoding Capture Description %s; expected %q, %q",
+					encodingName, eventhub.Avro, eventhub.AvroDeflate)
+			}
+
+			time := int32(capture["time_limit"].(int))
+			size := int32(capture["size_limit"].(int))
+
+			archiveName := capture["archive_name_format"].(string)
+
+			destination := capture["destination"].(string)
+			destinationName := captureDestinationPrefix + destination
+
+			props := &eventhub.DestinationProperties{
+				ArchiveNameFormat: &archiveName,
+			}
+
+			switch destinationName {
+			case "EventHubArchive.AzureDataLake":
+				storageAccount := capture["storage_account_resource_id"].(string)
+				blobContainer := capture["storage_blob_container_name"].(string)
+
+				props.StorageAccountResourceID = &storageAccount
+				props.BlobContainer = &blobContainer
+			case "EventHubArchive.AzureBlockBlob":
+				sub := capture["data_lake_subscription_id"].(string)
+				name := capture["data_lake_account_name"].(string)
+				path := capture["data_lake_folder_path"].(string)
+
+				props.DataLakeSubscriptionID = &sub
+				props.DataLakeAccountName = &name
+				props.DataLakeFolderPath = &path
+			default:
+				return fmt.Errorf("Unknown capture destination %s; expected %q or %q",
+					destination, "AzureBlockBlob", "AzureDataLake")
+			}
+
+			parameters.Properties.CaptureDescription = &eventhub.CaptureDescription{
+				Enabled:           &enabled,
+				Encoding:          encoding,
+				IntervalInSeconds: &time,
+				SizeLimitInBytes:  &size,
+				Destination: &eventhub.Destination{
+					Name: &destinationName,
+					DestinationProperties: props,
+				},
+			}
+		}
 	}
 
 	_, err := eventhubClient.CreateOrUpdate(resGroup, namespaceName, name, parameters)
@@ -125,6 +255,10 @@ func resourceArmEventHubRead(d *schema.ResourceData, meta interface{}) error {
 	d.Set("message_retention", resp.Properties.MessageRetentionInDays)
 	d.Set("partition_ids", resp.Properties.PartitionIds)
 
+	if err := d.Set("capture", flattenAzureRmEventHubCapture(resp.Properties.CaptureDescription)); err != nil {
+		return fmt.Errorf("[DEBUG] Error setting Event Hub Capture error: %#v", err)
+	}
+
 	return nil
 }
 
@@ -164,4 +298,61 @@ func validateEventHubMessageRetentionCount(v interface{}, k string) (ws []string
 		errors = append(errors, fmt.Errorf("EventHub Retention Count has to be between 1 and 7"))
 	}
 	return
+}
+
+func validateEventHubCaptureDestination(v interface{}, k string) (ws []string, errors []error) {
+	value := v.(string)
+
+	switch value {
+	case "AzureDataLake":
+		return
+	case "AzureBlockBlob":
+		return
+	default:
+		errors = append(errors, fmt.Errorf("EventHub Capture Destination has to be AzureBlockBlob"))
+	}
+	return
+}
+
+func validateEventHubCaptureEncoding(v interface{}, k string) (ws []string, errors []error) {
+	value := v.(string)
+
+	switch value {
+	case string(eventhub.Avro):
+		return
+	case string(eventhub.AvroDeflate):
+		return
+	default:
+		errors = append(errors, fmt.Errorf("Unknown Capture Encoding Description %q; expected %q, %q",
+			value, eventhub.Avro, eventhub.AvroDeflate))
+	}
+	return
+}
+
+func flattenAzureRmEventHubCapture(capture *eventhub.CaptureDescription) []interface{} {
+	result := make(map[string]interface{})
+
+	if capture != nil {
+		result["enabled"] = *capture.Enabled
+
+		result["encoding"] = string(capture.Encoding)
+
+		result["time_limit"] = *capture.IntervalInSeconds
+		result["size_limit"] = *capture.SizeLimitInBytes
+
+		result["archive_name_format"] = *capture.Destination.DestinationProperties.ArchiveNameFormat
+
+		dest := strings.Split(*capture.Destination.Name, ".")[1]
+		result["destination"] = dest
+		if dest == "AzureDataLake" {
+			result["data_lake_subscription_id"] = *capture.Destination.DestinationProperties.DataLakeSubscriptionID
+			result["data_lake_account_name"] = *capture.Destination.DestinationProperties.DataLakeAccountName
+			result["data_lake_folder_path"] = *capture.Destination.DestinationProperties.DataLakeFolderPath
+		} else if dest == "AzureBlockBlob" {
+			result["storage_account_resource_id"] = *capture.Destination.DestinationProperties.StorageAccountResourceID
+			result["storage_blob_container_name"] = *capture.Destination.DestinationProperties.BlobContainer
+		}
+	}
+
+	return []interface{}{result}
 }
