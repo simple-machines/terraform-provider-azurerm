@@ -172,6 +172,9 @@ type ArmClient struct {
 	storageServiceClient storage.AccountsClient
 	storageUsageClient   storage.UsageClient
 
+	// Stream Analytics
+	streamAnalyticsClient streamanalytics.StreamingJobsClient
+
 	// Traffic Manager
 	trafficManagerProfilesClient  trafficmanager.ProfilesClient
 	trafficManagerEndpointsClient trafficmanager.EndpointsClient
@@ -354,6 +357,13 @@ func getArmClient(c *authentication.Config) (*ArmClient, error) {
 	client.registerStorageClients(endpoint, c.SubscriptionID, auth)
 	client.registerTrafficManagerClients(endpoint, c.SubscriptionID, auth)
 	client.registerWebClients(endpoint, c.SubscriptionID, auth)
+
+	// Stream Analytics
+	sa := streamanalytics.NewStreamingJobsClientWithBaseURI(endpoint, c.SubscriptionID)
+	setUserAgent(&sa.Client)
+	sa.Authorizer = auth
+	sa.Sender = sender
+	client.streamAnalyticsClient = sa
 
 	return &client, nil
 }
