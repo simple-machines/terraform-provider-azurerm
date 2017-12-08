@@ -299,6 +299,14 @@
 			"versionExact": "v12.2.0-beta"
 		},
 		{
+			"checksumSHA1": "vOnGmOgXwwVJ6muLaeF8trezR8s=",
+			"path": "github.com/Azure/azure-sdk-for-go/arm/streamanalytics",
+			"revision": "80f6cbcb1d6295ebb8fbeb5afab826a94aa67d11",
+			"revisionTime": "2017-10-06T17:43:09Z",
+			"version": "v11.1.0-beta",
+			"versionExact": "v11.1.0-beta"
+		},
+		{
 			"checksumSHA1": "VC70GbmWycyEfJc8zRgPw/L6DsQ=",
 			"path": "github.com/Azure/azure-sdk-for-go/services/trafficmanager/mgmt/2017-05-01/trafficmanager",
 			"revision": "eae258195456be76b2ec9ad2ee2ab63cdda365d9",
