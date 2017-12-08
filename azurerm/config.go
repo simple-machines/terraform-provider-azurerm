@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/arm/operationalinsights"
 	"github.com/Azure/azure-sdk-for-go/arm/postgresql"
 	"github.com/Azure/azure-sdk-for-go/arm/redis"
+	"github.com/Azure/azure-sdk-for-go/arm/streamanalytics"
 	keyVault "github.com/Azure/azure-sdk-for-go/dataplane/keyvault"
 	appinsights "github.com/Azure/azure-sdk-for-go/services/appinsights/mgmt/2015-05-01/insights"
 	"github.com/Azure/azure-sdk-for-go/services/authorization/mgmt/2015-07-01/authorization"
@@ -112,6 +113,7 @@ type ArmClient struct {
 	redisFirewallClient       redis.FirewallRuleClient
 	redisPatchSchedulesClient redis.PatchSchedulesClient
 
+
 	keyVaultClient           keyvault.VaultsClient
 	keyVaultManagementClient keyVault.ManagementClient
 
@@ -164,6 +166,9 @@ type ArmClient struct {
 	// Storage
 	storageServiceClient storage.AccountsClient
 	storageUsageClient   storage.UsageClient
+
+	// Stream Analytics
+	streamAnalyticsClient streamanalytics.StreamingJobsClient
 
 	// Traffic Manager
 	trafficManagerProfilesClient  trafficmanager.ProfilesClient
@@ -457,6 +462,12 @@ func getArmClient(c *authentication.Config) (*ArmClient, error) {
 	snc.Sender = sender
 	snc.SkipResourceProviderRegistration = c.SkipProviderRegistration
 	client.subnetClient = snc
+
+	sa := streamanalytics.NewStreamingJobsClientWithBaseURI(endpoint, c.SubscriptionID)
+	setUserAgent(&sa.Client)
+	sa.Authorizer = auth
+	sa.Sender = sender
+	client.streamAnalyticsClient = sa
 
 	vgcc := network.NewVirtualNetworkGatewayConnectionsClientWithBaseURI(endpoint, c.SubscriptionID)
 	setUserAgent(&vgcc.Client)
