@@ -128,8 +128,9 @@ func TestAccAzureRMSqlDatabase_restorePointInTime(t *testing.T) {
 	location := testLocation()
 	preConfig := testAccAzureRMSqlDatabase_basic(ri, location)
 	timeToRestore := time.Now().Add(15 * time.Minute)
+	waitTimeToRestore := time.Now().Add(33 * time.Minute)
 	formattedTime := string(timeToRestore.UTC().Format(time.RFC3339))
-	postCongif := testAccAzureRMSqlDatabase_restorePointInTime(ri, formattedTime, testLocation())
+	postConfig := testAccAzureRMSqlDatabase_restorePointInTime(ri, formattedTime, testLocation())
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -144,8 +145,8 @@ func TestAccAzureRMSqlDatabase_restorePointInTime(t *testing.T) {
 				),
 			},
 			{
-				PreConfig: func() { time.Sleep(timeToRestore.Sub(time.Now().Add(-1 * time.Minute))) },
-				Config:    postCongif,
+				PreConfig: func() { time.Sleep(waitTimeToRestore.Sub(time.Now().Add(1 * time.Minute))) },
+				Config:    postConfig,
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMSqlDatabaseExists(resourceName),
 					testCheckAzureRMSqlDatabaseExists("azurerm_sql_database.test_restore"),
