@@ -24,6 +24,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"io"
 	"net/http"
+	"log"
 )
 
 // GroupClient is the creates an Azure Data Lake Store filesystem client.
@@ -479,8 +480,8 @@ func (client GroupClient) CreateResponder(resp *http.Response) (result autorest.
 // accountName is the Azure Data Lake Store account to execute filesystem operations on. pathParameter is the Data Lake
 // Store path (starting with '/') of the file or directory to delete. op is the constant value for the operation.
 // recursive is the optional switch indicating if the delete should be recursive
-func (client GroupClient) Delete(accountName string, pathParameter string, op string, recursive *bool) (result FileOperationResult, err error) {
-	req, err := client.DeletePreparer(accountName, pathParameter, op, recursive)
+func (client GroupClient) Delete(accountName string, pathParameter string, recursive *bool) (result FileOperationResult, err error) {
+	req, err := client.DeletePreparer(accountName, pathParameter, "DELETE", recursive)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "filesystem.GroupClient", "Delete", nil, "Failure preparing request")
 		return
@@ -554,8 +555,8 @@ func (client GroupClient) DeleteResponder(resp *http.Response) (result FileOpera
 // Store path (starting with '/') of the file or directory for which to get the ACL. op is the constant value for the
 // operation. tooID is an optional switch to return friendly names in place of object ID for ACL entries. tooid=false
 // returns friendly names instead of the AAD Object ID. Default value is true, returning AAD object IDs.
-func (client GroupClient) GetACLStatus(accountName string, pathParameter string, op string, tooID *bool) (result ACLStatusResult, err error) {
-	req, err := client.GetACLStatusPreparer(accountName, pathParameter, op, tooID)
+func (client GroupClient) GetACLStatus(accountName string, pathParameter string, tooID *bool) (result ACLStatusResult, err error) {
+	req, err := client.GetACLStatusPreparer(accountName, pathParameter, "GETACLSTATUS", tooID)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "filesystem.GroupClient", "GetACLStatus", nil, "Failure preparing request")
 		return
@@ -568,6 +569,8 @@ func (client GroupClient) GetACLStatus(accountName string, pathParameter string,
 		return
 	}
 
+
+	log.Printf("[INFO] The reponse of the acl is %s", resp)
 	result, err = client.GetACLStatusResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "filesystem.GroupClient", "GetACLStatus", resp, "Failure responding to request")
@@ -863,8 +866,8 @@ func (client GroupClient) ListFileStatusResponder(resp *http.Response) (result F
 // accountName is the Azure Data Lake Store account to execute filesystem operations on. pathParameter is the Data Lake
 // Store path (starting with '/') of the directory to create. op is the constant value for the operation. permission is
 // optional octal permission with which the directory should be created.
-func (client GroupClient) Mkdirs(accountName string, pathParameter string, op string, permission *int32) (result FileOperationResult, err error) {
-	req, err := client.MkdirsPreparer(accountName, pathParameter, op, permission)
+func (client GroupClient) Mkdirs(accountName string, pathParameter string, permission *int32) (result FileOperationResult, err error) {
+	req, err := client.MkdirsPreparer(accountName, pathParameter, "MKDIRS", permission)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "filesystem.GroupClient", "Mkdirs", nil, "Failure preparing request")
 		return
@@ -938,8 +941,8 @@ func (client GroupClient) MkdirsResponder(resp *http.Response) (result FileOpera
 // Store path (starting with '/') of the file or directory with the ACL being modified. aclspec is the ACL
 // specification included in ACL modification operations in the format '[default:]user|group|other::r|-w|-x|-' op is
 // the constant value for the operation.
-func (client GroupClient) ModifyACLEntries(accountName string, pathParameter string, aclspec string, op string) (result autorest.Response, err error) {
-	req, err := client.ModifyACLEntriesPreparer(accountName, pathParameter, aclspec, op)
+func (client GroupClient) ModifyACLEntries(accountName string, pathParameter string, aclspec string) (result autorest.Response, err error) {
+	req, err := client.ModifyACLEntriesPreparer(accountName, pathParameter, aclspec, "MODIFYACLENTRIES")
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "filesystem.GroupClient", "ModifyACLEntries", nil, "Failure preparing request")
 		return
@@ -1387,8 +1390,8 @@ func (client GroupClient) RemoveDefaultACLResponder(resp *http.Response) (result
 // accountName is the Azure Data Lake Store account to execute filesystem operations on. pathParameter is the Data Lake
 // Store path (starting with '/') of the file or directory to move/rename. destination is the path to move/rename the
 // file or folder to op is the constant value for the operation.
-func (client GroupClient) Rename(accountName string, pathParameter string, destination string, op string) (result FileOperationResult, err error) {
-	req, err := client.RenamePreparer(accountName, pathParameter, destination, op)
+func (client GroupClient) Rename(accountName string, pathParameter string, destination string) (result FileOperationResult, err error) {
+	req, err := client.RenamePreparer(accountName, pathParameter, destination, "RENAME")
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "filesystem.GroupClient", "Rename", nil, "Failure preparing request")
 		return
@@ -1460,8 +1463,8 @@ func (client GroupClient) RenameResponder(resp *http.Response) (result FileOpera
 // Store path (starting with '/') of the file or directory on which to set the ACL. aclspec is the ACL spec included in
 // ACL creation operations in the format '[default:]user|group|other::r|-w|-x|-' op is the constant value for the
 // operation.
-func (client GroupClient) SetACL(accountName string, pathParameter string, aclspec string, op string) (result autorest.Response, err error) {
-	req, err := client.SetACLPreparer(accountName, pathParameter, aclspec, op)
+func (client GroupClient) SetACL(accountName string, pathParameter string, aclspec string) (result autorest.Response, err error) {
+	req, err := client.SetACLPreparer(accountName, pathParameter, aclspec, "SETACL")
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "filesystem.GroupClient", "SetACL", nil, "Failure preparing request")
 		return
@@ -1690,8 +1693,8 @@ func (client GroupClient) SetOwnerResponder(resp *http.Response) (result autores
 // Store path (starting with '/') of the file or directory for which to set the permission. op is the constant value
 // for the operation. permission is a string representation of the permission (i.e 'rwx'). If empty, this property
 // remains unchanged.
-func (client GroupClient) SetPermission(accountName string, pathParameter string, op string, permission string) (result autorest.Response, err error) {
-	req, err := client.SetPermissionPreparer(accountName, pathParameter, op, permission)
+func (client GroupClient) SetPermission(accountName string, pathParameter string, permission string) (result autorest.Response, err error) {
+	req, err := client.SetPermissionPreparer(accountName, pathParameter, "SETPERMISSION", permission)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "filesystem.GroupClient", "SetPermission", nil, "Failure preparing request")
 		return

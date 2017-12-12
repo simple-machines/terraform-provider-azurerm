@@ -39,6 +39,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/arm/storage"
 	"github.com/Azure/azure-sdk-for-go/arm/trafficmanager"
 	"github.com/Azure/azure-sdk-for-go/arm/web"
+	"github.com/Azure/azure-sdk-for-go/datalake-store/filesystem"
 	keyVault "github.com/Azure/azure-sdk-for-go/dataplane/keyvault"
 	mainStorage "github.com/Azure/azure-sdk-for-go/storage"
 	"github.com/Azure/go-autorest/autorest"
@@ -146,7 +147,9 @@ type ArmClient struct {
 
 	appInsightsClient appinsights.ComponentsClient
 
+	// Data Lake Store
 	dataLakeStoreClient dataLakeStore.GroupClient
+	dataLakeFsClient    filesystem.GroupClient
 
 	// Authentication
 	roleAssignmentsClient   authorization.RoleAssignmentsClient
@@ -716,6 +719,12 @@ func getArmClient(c *authentication.Config) (*ArmClient, error) {
 	aschc.Authorizer = auth
 	aschc.Sender = sender
 	client.automationScheduleClient = aschc
+
+	dlfs := filesystem.NewGroupClient()
+	setUserAgent(&dlfs.Client)
+	dlfs.Authorizer = auth
+	dlfs.Sender = sender
+	client.dataLakeFsClient = dlfs
 
 	client.registerAutomationClients(endpoint, c.SubscriptionID, auth, sender)
 	client.registerAuthentication(endpoint, graphEndpoint, c.SubscriptionID, c.TenantID, auth, graphAuth, sender)

@@ -99,7 +99,7 @@ type ACLStatus struct {
 	Entries    *[]string `json:"entries,omitempty"`
 	Group      *string   `json:"group,omitempty"`
 	Owner      *string   `json:"owner,omitempty"`
-	Permission *int32    `json:"permission,omitempty"`
+	Permission *string   `json:"permission,omitempty"`
 	StickyBit  *bool     `json:"stickyBit,omitempty"`
 }
 
