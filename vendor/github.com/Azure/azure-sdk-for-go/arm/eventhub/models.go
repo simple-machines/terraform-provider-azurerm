@@ -18,10 +18,11 @@ package eventhub
 // Changes may cause incorrect behavior and will be lost if the code is regenerated.
 
 import (
+	"net/http"
+
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/date"
 	"github.com/Azure/go-autorest/autorest/to"
-	"net/http"
 )
 
 // AccessRights enumerates the values for access rights.
@@ -231,6 +232,9 @@ type DestinationProperties struct {
 	StorageAccountResourceID *string `json:"storageAccountResourceId,omitempty"`
 	BlobContainer            *string `json:"blobContainer,omitempty"`
 	ArchiveNameFormat        *string `json:"archiveNameFormat,omitempty"`
+	DataLakeSubscriptionID   *string `json:"dataLakeSubscriptionId,omitempty"`
+	DataLakeAccountName      *string `json:"dataLakeAccountName,omitempty"`
+	DataLakeFolderPath       *string `json:"dataLakeFolderPath,omitempty"`
 }
 
 // EHNamespace is single Namespace item in List or Get Operation
