@@ -134,6 +134,27 @@ func TestAccAzureRMEventHub_standard(t *testing.T) {
 	})
 }
 
+func TestAccAzureRMEventHub_capture(t *testing.T) {
+
+	ri := acctest.RandInt()
+	config := testAccAzureRMEventHub_capture(ri, testLocation())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMEventHubDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMEventHubExists("azurerm_eventhub.test"),
+					// TODO Check that the EventHub has capture configured?
+				),
+			},
+		},
+	})
+}
+
 func testCheckAzureRMEventHubDestroy(s *terraform.State) error {
 	conn := testAccProvider.Meta().(*ArmClient).eventHubClient
 
@@ -236,4 +257,55 @@ resource "azurerm_eventhub" "test" {
   message_retention   = 7
 }
 `, rInt, location, rInt, rInt)
+}
+
+func testAccAzureRMEventHub_capture(rInt int, location string) string {
+	return fmt.Sprintf(`
+resource "azurerm_resource_group" "test" {
+  name     = "acctestRG-%d"
+  location = "%s"
+}
+
+resource "azurerm_eventhub_namespace" "test" {
+  name                = "acctesteventhubnamespace-%d"
+  location            = "${azurerm_resource_group.test.location}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  sku                 = "Standard"
+}
+
+resource "azurerm_storage_account" "test" {
+	name = "accteststorageaccount-%d"
+	location = "${azurerm_resource_group.test.location}"
+	resource_group_name = "${azurerm_resource_group.test.name}"
+
+	account_tier = "Standard"
+	account_replication_type = "LRS"
+}
+
+resource "azurerm_storage_container" "test" {
+  name = "accteststoragecontainer-%d"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  storage_account_name = "${azurerm_storage_account.test.name}"
+}
+
+resource "azurerm_eventhub" "test" {
+	name                = "acctesteventhub-%d"
+	namespace_name      = "${azurerm_eventhub_namespace.test.name}"
+	resource_group_name = "${azurerm_resource_group.test.name}"
+	partition_count     = 2
+	message_retention   = 7
+
+	capture {
+		enabled = true
+		encoding = "Avro"
+		time_limit = 300
+    size_limit = 314572800
+
+    archive_name_format = "{Namespace}/{EventHub}/{PartitionId}/{Year}/{Month}/{Day}/{Hour}/{Minute}/{Second}"
+    destination = "AzureBlockBlob"
+    storage_blob_container_name = "${azurerm_storage_container.test.name}"
+    storage_account_resource_id = "${azurerm_storage_account.test.id}"
+	}
+}
+`, rInt, location, rInt, rInt, rInt, rInt)
 }
