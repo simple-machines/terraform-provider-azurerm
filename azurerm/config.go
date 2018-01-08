@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/arm/containerregistry"
 	"github.com/Azure/azure-sdk-for-go/arm/containerservice"
 	"github.com/Azure/azure-sdk-for-go/arm/cosmos-db"
+	dataLakeStore "github.com/Azure/azure-sdk-for-go/arm/datalake-store/account"
 	"github.com/Azure/azure-sdk-for-go/arm/disk"
 	"github.com/Azure/azure-sdk-for-go/arm/dns"
 	"github.com/Azure/azure-sdk-for-go/arm/eventgrid"
@@ -146,6 +147,8 @@ type ArmClient struct {
 	appServicesClient     web.AppsClient
 
 	appInsightsClient appinsights.ComponentsClient
+
+	dataLakeStoreClient dataLakeStore.GroupClient
 
 	// Authentication
 	roleAssignmentsClient   authorization.RoleAssignmentsClient
@@ -685,6 +688,36 @@ func getArmClient(c *authentication.Config) (*ArmClient, error) {
 	ai.Sender = sender
 	ai.SkipResourceProviderRegistration = c.SkipProviderRegistration
 	client.appInsightsClient = ai
+
+	dls := dataLakeStore.NewGroupClient(c.SubscriptionID)
+	setUserAgent(&dls.Client)
+	dls.Authorizer = auth
+	dls.Sender = sender
+	client.dataLakeStoreClient = dls
+
+	aadb := automation.NewAccountClientWithBaseURI(endpoint, c.SubscriptionID)
+	setUserAgent(&aadb.Client)
+	aadb.Authorizer = auth
+	aadb.Sender = sender
+	client.automationAccountClient = aadb
+
+	arc := automation.NewRunbookClientWithBaseURI(endpoint, c.SubscriptionID)
+	setUserAgent(&arc.Client)
+	arc.Authorizer = auth
+	arc.Sender = sender
+	client.automationRunbookClient = arc
+
+	acc := automation.NewCredentialClientWithBaseURI(endpoint, c.SubscriptionID)
+	setUserAgent(&acc.Client)
+	acc.Authorizer = auth
+	acc.Sender = sender
+	client.automationCredentialClient = acc
+
+	aschc := automation.NewScheduleClientWithBaseURI(endpoint, c.SubscriptionID)
+	setUserAgent(&aschc.Client)
+	aschc.Authorizer = auth
+	aschc.Sender = sender
+	client.automationScheduleClient = aschc
 
 	client.registerAutomationClients(endpoint, c.SubscriptionID, auth, sender)
 	client.registerAuthentication(endpoint, graphEndpoint, c.SubscriptionID, c.TenantID, auth, graphAuth, sender)
