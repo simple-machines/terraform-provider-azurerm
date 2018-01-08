@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/arm/servicebus"
 	"github.com/Azure/azure-sdk-for-go/arm/sql"
 	"github.com/Azure/azure-sdk-for-go/arm/storage"
+	"github.com/Azure/azure-sdk-for-go/arm/streamanalytics"
 	"github.com/Azure/azure-sdk-for-go/arm/trafficmanager"
 	"github.com/Azure/azure-sdk-for-go/arm/web"
 	keyVault "github.com/Azure/azure-sdk-for-go/dataplane/keyvault"
@@ -123,6 +124,8 @@ type ArmClient struct {
 
 	storageServiceClient storage.AccountsClient
 	storageUsageClient   storage.UsageClient
+
+	streamAnalyticsClient streamanalytics.StreamingJobsClient
 
 	deploymentsClient resources.DeploymentsClient
 
@@ -608,6 +611,24 @@ func getArmClient(c *authentication.Config) (*ArmClient, error) {
 	suc.Sender = sender
 	suc.SkipResourceProviderRegistration = c.SkipProviderRegistration
 	client.storageUsageClient = suc
+
+	sa := streamanalytics.NewStreamingJobsClientWithBaseURI(endpoint, c.SubscriptionID)
+	setUserAgent(&sa.Client)
+	sa.Authorizer = auth
+	sa.Sender = sender
+	client.streamAnalyticsClient = sa
+
+	cpc := cdn.NewProfilesClientWithBaseURI(endpoint, c.SubscriptionID)
+	setUserAgent(&cpc.Client)
+	cpc.Authorizer = auth
+	cpc.Sender = sender
+	client.cdnProfilesClient = cpc
+
+	cec := cdn.NewEndpointsClientWithBaseURI(endpoint, c.SubscriptionID)
+	setUserAgent(&cec.Client)
+	cec.Authorizer = auth
+	cec.Sender = sender
+	client.cdnEndpointsClient = cec
 
 	dc := resources.NewDeploymentsClientWithBaseURI(endpoint, c.SubscriptionID)
 	setUserAgent(&dc.Client)
