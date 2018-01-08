@@ -75,6 +75,12 @@
 			"versionExact": "v11.2.2-beta"
 		},
 		{
+			"checksumSHA1": "/UtEE3UQBlv7f4TZXkgkZFPrY18=",
+			"path": "github.com/Azure/azure-sdk-for-go/arm/datalake-store/account",
+			"revision": "7692b0cef22674113fcf71cc17ac3ccc1a7fef48",
+			"revisionTime": "2017-11-07T22:03:28Z"
+		},
+		{
 			"checksumSHA1": "TZa+aR1MLk+nQVZaUWNPWCBHeBQ=",
 			"path": "github.com/Azure/azure-sdk-for-go/arm/disk",
 			"revision": "7692b0cef22674113fcf71cc17ac3ccc1a7fef48",
@@ -241,6 +247,14 @@
 			"revisionTime": "2017-11-07T22:03:28Z",
 			"version": "v11.2.2-beta",
 			"versionExact": "v11.2.2-beta"
+		},
+		{
+			"checksumSHA1": "tUJj7LiXy8jMjMKGwTod2sOcGi8=",
+			"path": "github.com/Azure/azure-sdk-for-go/datalake-store/filesystem",
+			"revision": "80f6cbcb1d6295ebb8fbeb5afab826a94aa67d11",
+			"revisionTime": "2017-10-06T17:43:09Z",
+			"version": "v11.1.0-beta",
+			"versionExact": "v11.1.0-beta"
 		},
 		{
 			"checksumSHA1": "hOnaPIkeDhBG2PFf+qAJe8Rgmh4=",

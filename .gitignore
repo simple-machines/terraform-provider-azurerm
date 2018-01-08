@@ -28,6 +28,11 @@ website/vendor
 
 .vscode/
 
+examples/*/.terraform/
+examples/*/*.tfstate
+examples/*/*.tfstate.backup
+examples/*/terraform-provider-*
+
 # Test exclusions
 !command/test-fixtures/**/*.tfstate
 !command/test-fixtures/**/.terraform/

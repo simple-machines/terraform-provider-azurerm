@@ -97,6 +97,8 @@ func Provider() terraform.ResourceProvider {
 			"azurerm_container_service":           resourceArmContainerService(),
 			"azurerm_container_group":             resourceArmContainerGroup(),
 			"azurerm_cosmosdb_account":            resourceArmCosmosDBAccount(),
+			"azurerm_datalake_store_account":      resourceArmDataLakeStoreAccount(),
+			"azurerm_datalake_filesystem":         resourceArmDataLakeFileSystem(),
 			"azurerm_dns_a_record":                resourceArmDnsARecord(),
 			"azurerm_dns_aaaa_record":             resourceArmDnsAAAARecord(),
 			"azurerm_dns_cname_record":            resourceArmDnsCNameRecord(),
