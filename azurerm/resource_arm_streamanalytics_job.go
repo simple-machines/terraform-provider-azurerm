@@ -87,6 +87,7 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			"data_locale": {
 				Type:        schema.TypeString,
 				Description: "Name of a locale: [en-US], en-AU, fr-FR, ...",
+				Default:     "en-US",
 				Optional:    true,
 				// TODO Validate
 			},
@@ -94,6 +95,7 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			"late_arrival_max_delay": {
 				Description:  "Maximum time to wait for a late arrival in seconds. -1 means wait forever.",
 				Type:         schema.TypeInt,
+				Default:      5,
 				Optional:     true,
 				ValidateFunc: validation.IntBetween(-1, 1814399),
 			},
@@ -636,7 +638,10 @@ func resourceArmStreamAnalyticsJobRead(d *schema.ResourceData, meta interface{})
 	}
 	d.Set("out_of_order_policy", string(properties.EventsOutOfOrderPolicy))
 	d.Set("output_error_policy", string(properties.OutputErrorPolicy))
-	d.Set("out_of_order_max_delay", int(*properties.EventsOutOfOrderMaxDelayInSeconds))
+
+	if v := properties.EventsOutOfOrderMaxDelayInSeconds; v != nil {
+		d.Set("out_of_order_max_delay", int(*properties.EventsOutOfOrderMaxDelayInSeconds))
+	}
 	d.Set("late_arrival_max_delay", int(*properties.EventsLateArrivalMaxDelayInSeconds))
 	d.Set("data_locale", *properties.DataLocale)
 	d.Set("created_date", string(properties.CreatedDate.Format(time.RFC3339)))
@@ -1269,6 +1274,7 @@ func flattenStreamAnalyticsJobOutput(config *streamanalytics.Output) (*map[strin
 	result["name"] = name
 
 	properties := *config.OutputProperties
+
 	if err := flattenAndSetArmStreamAnalyticsSerialization(&result, properties.Serialization); err != nil {
 		return nil, fmt.Errorf("Nope")
 	}
