@@ -7,7 +7,13 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/arm/streamanalytics"
+	"github.com/hashicorp/terraform/helper/acctest"
+	"github.com/hashicorp/terraform/helper/resource"
 	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform/terraform"
+	"net/http"
+	//"github.com/aws/aws-sdk-go/aws/client"
+	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
 type validationcase struct {
@@ -186,4 +192,180 @@ func TestJSONMarshalling(t *testing.T) {
 		t.Fatalf("marshal(Output) == marshal-parse-marshal(Output) failed")
 	}
 
+}
+
+func TestAccAzureRMStreamAnalyticsJob_outputSqlDb(t *testing.T) {
+
+	ri := acctest.RandInt()
+	config := testAccAzureRMStreamAnalytics_basic(ri, testLocation())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMStreamAnalyticsJobDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMStreamAnalyticsJobExists("azurerm_streamanalytics_job.test"),
+				),
+			},
+		},
+	})
+}
+
+func testCheckAzureRMStreamAnalyticsJobDestroy(s *terraform.State) error {
+	conn := testAccProvider.Meta().(*ArmClient).eventHubClient
+
+	for _, rs := range s.RootModule().Resources {
+		if rs.Type != "azurerm_streamanalytics_job" {
+			continue
+		}
+
+		jobName := rs.Primary.Attributes["name"]
+		resourceGroup := rs.Primary.Attributes["resource_group_name"]
+
+		resp, err := conn.Get(resourceGroup, jobName, thingsToGet)
+
+		if err != nil {
+			return nil
+		}
+
+		if resp.StatusCode != http.StatusNotFound {
+			return fmt.Errorf("EventHub still exists:\n%#v", resp.Properties)
+		}
+	}
+
+	return nil
+}
+
+func testCheckAzureRMStreamAnalyticsJobExists(name string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		// Ensure we have enough information in state to look up in API
+		rs, ok := s.RootModule().Resources[name]
+		if !ok {
+			return fmt.Errorf("Not found: %s", name)
+		}
+
+		jobName := rs.Primary.Attributes["name"]
+		resourceGroup, hasResourceGroup := rs.Primary.Attributes["resource_group_name"]
+		if !hasResourceGroup {
+			return fmt.Errorf("Bad: no resource group found in state for Stream Analytics Job: %s", jobName)
+		}
+
+		conn := testAccProvider.Meta().(*ArmClient).eventHubClient
+
+		resp, err := conn.Get(resourceGroup, jobName, thingsToGet)
+		if err != nil {
+			if utils.ResponseWasNotFound(resp.Response) {
+				return nil
+			}
+
+			return err
+		}
+
+		return fmt.Errorf("Stream analytics job %q (resource group %q) still exists: %+v", jobName, resourceGroup, resp)
+	}
+}
+
+func testAccAzureRMStreamAnalytics_basic(rInt int, location string) string {
+	return fmt.Sprintf(`
+resource "azurerm_resource_group" "test" {
+  name     = "acctestRG-%d"
+  location = "%s"
+}
+
+# Create event hub namespace
+resource "azurerm_eventhub_namespace" "test" {
+  name                = "acctesteventhubnamespace-%d"
+  location            = "${azurerm_resource_group.test.location}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  sku                 = "Standard"
+  capacity            = 1
+}
+
+# Create event hub within namespace
+resource "azurerm_eventhub" "test" {
+  name                = "acctesteventhub-%d"
+  namespace_name      = "${azurerm_eventhub_namespace.test.name}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  partition_count     = 2
+  message_retention   = 1
+}
+
+# Create authorization rule for listening on the event hub
+resource "azurerm_eventhub_authorization_rule" "test" {
+    name = "acctesteventhubauth-%d"
+
+    resource_group_name = "${azurerm_resource_group.test.name}"
+    namespace_name = "${azurerm_eventhub_namespace.test.name}"
+    eventhub_name = "${azurerm_eventhub.test.name}"
+
+    listen = true
+}
+
+# Create consumer group on the event hub
+resource "azurerm_eventhub_consumer_group" "test" {
+    name = "acctesteventhubconsumer-%d"
+
+    resource_group_name = "${azurerm_resource_group.test.name}"
+
+    namespace_name = "${azurerm_eventhub_namespace.test.name}"
+    eventhub_name = "${azurerm_eventhub.test.name}"
+}
+
+resource "azurerm_sql_server" "test" {
+  name                         = "acctestsqlserver-%d"
+  resource_group_name          = "${azurerm_resource_group.test.name}"
+  location                     = "${azurerm_resource_group.test.location}"
+  version                      = "12.0"
+  administrator_login = "mradministrator"
+  administrator_login_password = "thisIsDog11"
+}
+
+resource "azurerm_sql_database" "test" {
+  name                = "acctestsqldb-%d"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  location = "${azurerm_resource_group.test.location}"
+  server_name = "${azurerm_sql_server.test.name}"
+}
+
+resource "azurerm_streamanalytics_job" "test" {
+   name                = "accteststreamanalyticsjob-%d"
+   location            = "${azurerm_resource_group.test.location}"
+   resource_group_name = "${azurerm_resource_group.test.name}"
+   sku   = "Standard"
+
+   input {
+        name = "accteststreaminput-%d"
+        type = "Stream"
+        serialization = "Avro"
+
+        datasource = "Microsoft.ServiceBus/EventHub"
+
+        service_bus_namespace = "${azurerm_eventhub_namespace.test.name}"
+        eventhub_name = "${azurerm_eventhub.test.name}"
+        shared_access_policy_name = "${azurerm_eventhub_authorization_rule.test.name}"
+        shared_access_policy_key = "${azurerm_eventhub_authorization_rule.test.primary_key}"
+        consumer_group_name = "${azurerm_eventhub_consumer_group.test.name}"
+   }
+
+   transformation {
+        name = "accteststreamtransformation-%d"
+        query = "select id into [accteststreamoutput-%d] from [accteststreaminput-%d]"
+   }
+
+   output {
+        name = "accteststreamoutput-%d"
+        serialization = "Avro"
+
+        datasource = "Microsoft.Sql/Server/Database"
+        database_server = "${azurerm_sql_server.test.name}"
+        database_name = "${azurerm_sql_database.test.name}"
+        database_table = "something"
+        database_user = "mradministrator"
+        database_password = "thisIsDog11"
+  }
+}
+`, rInt, location, rInt, rInt, rInt, rInt, rInt, rInt, rInt, rInt, rInt, rInt, rInt, rInt)
 }
