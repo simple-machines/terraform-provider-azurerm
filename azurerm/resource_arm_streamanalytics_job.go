@@ -1275,8 +1275,10 @@ func flattenStreamAnalyticsJobOutput(config *streamanalytics.Output) (*map[strin
 
 	properties := *config.OutputProperties
 
-	if err := flattenAndSetArmStreamAnalyticsSerialization(&result, properties.Serialization); err != nil {
-		return nil, fmt.Errorf("Nope")
+	if _, ok := properties.Datasource.AsAzureSQLDatabaseOutputDataSource(); !ok {
+		if err := flattenAndSetArmStreamAnalyticsSerialization(&result, properties.Serialization); err != nil {
+			return nil, fmt.Errorf("Nope")
+		}
 	}
 
 	if ds, ok := properties.Datasource.AsAzureDataLakeStoreOutputDataSource(); ok {

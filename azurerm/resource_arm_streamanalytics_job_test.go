@@ -12,8 +12,6 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/terraform"
 	"net/http"
-	//"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/terraform-providers/terraform-provider-azurerm/azurerm/utils"
 )
 
 type validationcase struct {
@@ -215,7 +213,7 @@ func TestAccAzureRMStreamAnalyticsJob_outputSqlDb(t *testing.T) {
 }
 
 func testCheckAzureRMStreamAnalyticsJobDestroy(s *terraform.State) error {
-	conn := testAccProvider.Meta().(*ArmClient).eventHubClient
+	conn := testAccProvider.Meta().(*ArmClient).streamAnalyticsClient
 
 	for _, rs := range s.RootModule().Resources {
 		if rs.Type != "azurerm_streamanalytics_job" {
@@ -232,7 +230,7 @@ func testCheckAzureRMStreamAnalyticsJobDestroy(s *terraform.State) error {
 		}
 
 		if resp.StatusCode != http.StatusNotFound {
-			return fmt.Errorf("EventHub still exists:\n%#v", resp.Properties)
+			return fmt.Errorf("Stream analytics job %q (resource group %q) still exists: %+v", jobName, resourceGroup, resp)
 		}
 	}
 
@@ -253,18 +251,18 @@ func testCheckAzureRMStreamAnalyticsJobExists(name string) resource.TestCheckFun
 			return fmt.Errorf("Bad: no resource group found in state for Stream Analytics Job: %s", jobName)
 		}
 
-		conn := testAccProvider.Meta().(*ArmClient).eventHubClient
-
+		conn := testAccProvider.Meta().(*ArmClient).streamAnalyticsClient
 		resp, err := conn.Get(resourceGroup, jobName, thingsToGet)
-		if err != nil {
-			if utils.ResponseWasNotFound(resp.Response) {
-				return nil
-			}
 
-			return err
+		if err != nil {
+			return fmt.Errorf("Bad: Get on streamAnalyticsClient: %+v", err)
 		}
 
-		return fmt.Errorf("Stream analytics job %q (resource group %q) still exists: %+v", jobName, resourceGroup, resp)
+		if resp.StatusCode == http.StatusNotFound {
+			return fmt.Errorf("Bad: Stream analytics job %q (resource group: %q) does not exist", name, resourceGroup)
+		}
+
+		return nil
 	}
 }
 
