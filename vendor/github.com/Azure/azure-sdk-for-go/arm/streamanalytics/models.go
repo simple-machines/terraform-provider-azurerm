@@ -20,11 +20,10 @@ package streamanalytics
 import (
 	"encoding/json"
 	"errors"
-	"net/http"
-
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/date"
 	"github.com/Azure/go-autorest/autorest/to"
+	"net/http"
 )
 
 // BindingType enumerates the values for binding type.
@@ -1508,58 +1507,6 @@ type Output struct {
 	Name              *string `json:"name,omitempty"`
 	Type              *string `json:"type,omitempty"`
 	*OutputProperties `json:"properties,omitempty"`
-}
-
-// UnmarshalJSON is the custom unmarshaller for Output struct.
-func (o *Output) UnmarshalJSON(body []byte) error {
-	var m map[string]*json.RawMessage
-	err := json.Unmarshal(body, &m)
-	if err != nil {
-		return err
-	}
-	var v *json.RawMessage
-
-	v = m["properties"]
-	if v != nil {
-		var properties OutputProperties
-		err := json.Unmarshal(*m["properties"], &properties)
-		if err != nil {
-			return err
-		}
-		o.OutputProperties = &properties
-	}
-
-	v = m["id"]
-	if v != nil {
-		var ID string
-		err = json.Unmarshal(*m["id"], &ID)
-		if err != nil {
-			return err
-		}
-		o.ID = &ID
-	}
-
-	v = m["name"]
-	if v != nil {
-		var name string
-		err = json.Unmarshal(*m["name"], &name)
-		if err != nil {
-			return err
-		}
-		o.Name = &name
-	}
-
-	v = m["type"]
-	if v != nil {
-		var typeVar string
-		err = json.Unmarshal(*m["type"], &typeVar)
-		if err != nil {
-			return err
-		}
-		o.Type = &typeVar
-	}
-
-	return nil
 }
 
 // OutputDataSource is describes the data source that output will be written to.
