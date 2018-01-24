@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/arm/streamanalytics"
+	"github.com/Azure/azure-sdk-for-go/services/streamanalytics/mgmt/2016-03-01/streamanalytics"
 	"github.com/hashicorp/terraform/helper/acctest"
 	"github.com/hashicorp/terraform/helper/resource"
 	"github.com/hashicorp/terraform/helper/schema"
@@ -214,6 +214,7 @@ func TestAccAzureRMStreamAnalyticsJob_outputSqlDb(t *testing.T) {
 
 func testCheckAzureRMStreamAnalyticsJobDestroy(s *terraform.State) error {
 	conn := testAccProvider.Meta().(*ArmClient).streamAnalyticsClient
+	ctx := testAccProvider.Meta().(*ArmClient).StopContext
 
 	for _, rs := range s.RootModule().Resources {
 		if rs.Type != "azurerm_streamanalytics_job" {
@@ -223,7 +224,7 @@ func testCheckAzureRMStreamAnalyticsJobDestroy(s *terraform.State) error {
 		jobName := rs.Primary.Attributes["name"]
 		resourceGroup := rs.Primary.Attributes["resource_group_name"]
 
-		resp, err := conn.Get(resourceGroup, jobName, thingsToGet)
+		resp, err := conn.Get(ctx, resourceGroup, jobName, thingsToGet)
 
 		if err != nil {
 			return nil
@@ -252,7 +253,8 @@ func testCheckAzureRMStreamAnalyticsJobExists(name string) resource.TestCheckFun
 		}
 
 		conn := testAccProvider.Meta().(*ArmClient).streamAnalyticsClient
-		resp, err := conn.Get(resourceGroup, jobName, thingsToGet)
+		ctx := testAccProvider.Meta().(*ArmClient).StopContext
+		resp, err := conn.Get(ctx, resourceGroup, jobName, thingsToGet)
 
 		if err != nil {
 			return fmt.Errorf("Bad: Get on streamAnalyticsClient: %+v", err)
