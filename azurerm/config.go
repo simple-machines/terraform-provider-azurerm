@@ -113,7 +113,6 @@ type ArmClient struct {
 	redisFirewallClient       redis.FirewallRuleClient
 	redisPatchSchedulesClient redis.PatchSchedulesClient
 
-
 	keyVaultClient           keyvault.VaultsClient
 	keyVaultManagementClient keyVault.ManagementClient
 
