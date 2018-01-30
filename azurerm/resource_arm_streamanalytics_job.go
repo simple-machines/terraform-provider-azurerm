@@ -152,8 +152,7 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			"input": {
 				Type:        schema.TypeList,
 				Description: "Datasources to be used by queries.",
-				Required:    true,
-				MinItems:    1,
+				Optional:    true,
 				// TODO: When Terraform supports validating lists and sets.
 				// ValidateFunc: validateInput,
 				Elem: &schema.Resource{
@@ -229,6 +228,7 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 							Type:     schema.TypeInt,
 							Optional: true,
 						},
+
 						// Shared Event and IoT Hub fields
 						"shared_access_policy_name": {
 							Type:     schema.TypeString,
@@ -243,6 +243,7 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 							Type:     schema.TypeString,
 							Optional: true,
 						},
+
 						// Event Hub fields
 						"service_bus_namespace": {
 							Type:     schema.TypeString,
@@ -252,6 +253,7 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 							Type:     schema.TypeString,
 							Optional: true,
 						},
+
 						// IoT Hub fields
 						"iot_hub_namespace": {
 							Type:     schema.TypeString,
@@ -268,9 +270,8 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			// To avoid having to split the single transformation when we
 			// read.
 			"transformation": {
-				Type:        schema.TypeList,
-				Required:    true,
-				MinItems:    1,
+				Type:     schema.TypeList,
+				Optional: true,
 				MaxItems:    1,
 				Description: "SQL query to execute.",
 				Elem: &schema.Resource{
@@ -294,9 +295,8 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			},
 
 			"output": {
-				Type:        schema.TypeList,
-				Required:    true,
-				MinItems:    1,
+				Type:     schema.TypeList,
+				Optional: true,
 				Description: "Data outputs to be updated by queries.",
 				// TODO: When Terraform supports validating lists and sets.
 				// ValidateFunc: validateOutput,
@@ -1377,10 +1377,6 @@ func validateArmStreamAnalyticsInputDatasource(v interface{}, k string) (ws []st
 	switch value {
 	case string(streamanalytics.TypeBasicReferenceInputDataSourceTypeMicrosoftStorageBlob):
 		return
-	// No need to check this case as it's identical to the above.
-	//
-	// case string(streamanalytics.TypeStreamInputDataSourceTypeMicrosoftStorageBlob):
-	// 	return
 	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftDevicesIotHubs):
 		return
 	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftServiceBusEventHub):
@@ -1402,11 +1398,11 @@ func validateArmStreamAnalyticsOutputDatasource(v interface{}, k string) (ws []s
 		return
 	case string(streamanalytics.TypeMicrosoftSQLServerDatabase):
 		return
+	case string(streamanalytics.TypeMicrosoftStorageBlob):
+		return
 	case string(streamanalytics.TypeMicrosoftServiceBusQueue):
 		errors = append(errors, fmt.Errorf("Output datasource not currently supported: %q", value))
 	case string(streamanalytics.TypeMicrosoftServiceBusTopic):
-		errors = append(errors, fmt.Errorf("Output datasource not currently supported: %q", value))
-	case string(streamanalytics.TypeMicrosoftStorageBlob):
 		errors = append(errors, fmt.Errorf("Output datasource not currently supported: %q", value))
 	case string(streamanalytics.TypeMicrosoftStorageDocumentDB):
 		errors = append(errors, fmt.Errorf("Output datasource not currently supported: %q", value))

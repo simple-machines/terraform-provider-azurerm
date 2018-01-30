@@ -192,10 +192,10 @@ func TestJSONMarshalling(t *testing.T) {
 
 }
 
-func TestAccAzureRMStreamAnalyticsJob_outputSqlDb(t *testing.T) {
-
+func TestAccAzureRMStreamAnalyticsJob_streamInput(t *testing.T) {
 	ri := acctest.RandInt()
-	config := testAccAzureRMStreamAnalytics_basic(ri, testLocation())
+	resourceName := "azurerm_streamanalytics_job.test"
+	config := testAccAzureRMStreamAnalytics_streamInput(ri, testLocation())
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -206,6 +206,91 @@ func TestAccAzureRMStreamAnalyticsJob_outputSqlDb(t *testing.T) {
 				Config: config,
 				Check: resource.ComposeTestCheckFunc(
 					testCheckAzureRMStreamAnalyticsJobExists("azurerm_streamanalytics_job.test"),
+					resource.TestCheckResourceAttr(resourceName, "input.0.name", fmt.Sprintf("acctesteventhubinput-%d", ri)),
+				),
+			},
+		},
+	})
+}
+
+func TestAccAzureRMStreamAnalyticsJob_referenceInput(t *testing.T) {
+	ri := acctest.RandInt()
+	resourceName := "azurerm_streamanalytics_job.test"
+	config := testAccAzureRMStreamAnalytics_referenceInput(ri, testLocation())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMStreamAnalyticsJobDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMStreamAnalyticsJobExists("azurerm_streamanalytics_job.test"),
+					resource.TestCheckResourceAttr(resourceName, "input.0.name", fmt.Sprintf("acctestblobinput-%d", ri)),
+				),
+			},
+		},
+	})
+}
+
+func TestAccAzureRMStreamAnalyticsJob_sqlDbOut(t *testing.T) {
+	ri := acctest.RandInt()
+	resourceName := "azurerm_streamanalytics_job.test"
+	config := testAccAzureRMStreamAnalytics_sqlDbOutput(ri, testLocation())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMStreamAnalyticsJobDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMStreamAnalyticsJobExists("azurerm_streamanalytics_job.test"),
+					resource.TestCheckResourceAttr(resourceName, "output.0.name", fmt.Sprintf("acctestdboutput-%d", ri)),
+				),
+			},
+		},
+	})
+}
+
+func TestAccAzureRMStreamAnalyticsJob_eventHubOut(t *testing.T) {
+	ri := acctest.RandInt()
+	resourceName := "azurerm_streamanalytics_job.test"
+	config := testAccAzureRMStreamAnalytics_eventHubOutput(ri, testLocation())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMStreamAnalyticsJobDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMStreamAnalyticsJobExists("azurerm_streamanalytics_job.test"),
+					resource.TestCheckResourceAttr(resourceName, "output.0.name", fmt.Sprintf("acctesteventhuboutput-%d", ri)),
+				),
+			},
+		},
+	})
+}
+
+func TestAccAzureRMStreamAnalyticsJob_blobOut(t *testing.T) {
+	ri := acctest.RandInt()
+	resourceName := "azurerm_streamanalytics_job.test"
+	config := testAccAzureRMStreamAnalytics_blobOutput(ri, testLocation())
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckAzureRMStreamAnalyticsJobDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					testCheckAzureRMStreamAnalyticsJobExists("azurerm_streamanalytics_job.test"),
+					resource.TestCheckResourceAttr(resourceName, "output.0.name", fmt.Sprintf("acctestbloboutput-%d", ri)),
 				),
 			},
 		},
@@ -268,14 +353,13 @@ func testCheckAzureRMStreamAnalyticsJobExists(name string) resource.TestCheckFun
 	}
 }
 
-func testAccAzureRMStreamAnalytics_basic(rInt int, location string) string {
+func testAccAzureRMStreamAnalytics_streamInput(rInt int, location string) string {
 	return fmt.Sprintf(`
 resource "azurerm_resource_group" "test" {
   name     = "acctestRG-%d"
   location = "%s"
 }
 
-# Create event hub namespace
 resource "azurerm_eventhub_namespace" "test" {
   name                = "acctesteventhubnamespace-%d"
   location            = "${azurerm_resource_group.test.location}"
@@ -284,7 +368,6 @@ resource "azurerm_eventhub_namespace" "test" {
   capacity            = 1
 }
 
-# Create event hub within namespace
 resource "azurerm_eventhub" "test" {
   name                = "acctesteventhub-%d"
   namespace_name      = "${azurerm_eventhub_namespace.test.name}"
@@ -293,25 +376,102 @@ resource "azurerm_eventhub" "test" {
   message_retention   = 1
 }
 
-# Create authorization rule for listening on the event hub
 resource "azurerm_eventhub_authorization_rule" "test" {
-    name = "acctesteventhubauth-%d"
-
-    resource_group_name = "${azurerm_resource_group.test.name}"
-    namespace_name = "${azurerm_eventhub_namespace.test.name}"
-    eventhub_name = "${azurerm_eventhub.test.name}"
-
-    listen = true
+  name 	              = "acctesteventhubauth-%d"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  namespace_name      = "${azurerm_eventhub_namespace.test.name}"
+  eventhub_name       = "${azurerm_eventhub.test.name}"
+  listen 	      = true
 }
 
-# Create consumer group on the event hub
 resource "azurerm_eventhub_consumer_group" "test" {
-    name = "acctesteventhubconsumer-%d"
+  name 		      = "acctesteventhubconsumer-%d"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  namespace_name      = "${azurerm_eventhub_namespace.test.name}"
+  eventhub_name       = "${azurerm_eventhub.test.name}"
+}
 
-    resource_group_name = "${azurerm_resource_group.test.name}"
+resource "azurerm_streamanalytics_job" "test" {
+  name                = "accteststreamanalyticsjob-%d"
+  location            = "${azurerm_resource_group.test.location}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  sku   	      = "Standard"
 
-    namespace_name = "${azurerm_eventhub_namespace.test.name}"
-    eventhub_name = "${azurerm_eventhub.test.name}"
+  input {
+    name 	  = "acctesteventhubinput-%d"
+    type 	  = "Stream"
+    serialization = "Avro"
+    datasource 	  = "Microsoft.ServiceBus/EventHub"
+
+    service_bus_namespace     = "${azurerm_eventhub_namespace.test.name}"
+    eventhub_name 	      = "${azurerm_eventhub.test.name}"
+    shared_access_policy_name = "${azurerm_eventhub_authorization_rule.test.name}"
+    shared_access_policy_key  = "${azurerm_eventhub_authorization_rule.test.primary_key}"
+    consumer_group_name       = "${azurerm_eventhub_consumer_group.test.name}"
+  }
+}
+`, rInt, location, rInt, rInt, rInt, rInt, rInt, rInt)
+}
+
+func testAccAzureRMStreamAnalytics_referenceInput(rInt int, location string) string {
+	return fmt.Sprintf(`
+resource "azurerm_resource_group" "test" {
+  name     = "acctestRG-%d"
+  location = "%s"
+}
+
+resource "azurerm_storage_account" "test" {
+  name                     = "ats%d"
+  resource_group_name      = "${azurerm_resource_group.test.name}"
+  location                 = "${azurerm_resource_group.test.location}"
+  account_tier             = "Standard"
+  account_replication_type = "RAGRS"
+}
+
+resource "azurerm_storage_container" "test" {
+  name                  = "accteststoragecontainer-%d"
+  resource_group_name   = "${azurerm_resource_group.test.name}"
+  storage_account_name  = "${azurerm_storage_account.test.name}"
+  container_access_type = "container"
+}
+
+resource "azurerm_storage_blob" "test" {
+  name 			 = "acctestblob-%d"
+  resource_group_name    = "${azurerm_resource_group.test.name}"
+  storage_account_name   = "${azurerm_storage_account.test.name}"
+  storage_container_name = "${azurerm_storage_container.test.name}"
+  type 			 = "block"
+}
+
+resource "azurerm_streamanalytics_job" "test" {
+  name                = "accteststreamanalyticsjob-%d"
+  location            = "${azurerm_resource_group.test.location}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  sku   	      = "Standard"
+
+  input {
+    name 	  = "acctestblobinput-%d"
+    type 	  = "Reference"
+    serialization = "Json"
+    encoding      = "UTF8"
+    datasource    = "Microsoft.Storage/Blob"
+
+    storage_account_name = "${azurerm_storage_account.test.name}"
+    storage_account_key  = "${azurerm_storage_account.test.primary_access_key}"
+    storage_container    = "${azurerm_storage_container.test.name}"
+    storage_path_pattern = "/test/{date}/{time}/test.json"
+    storage_date_format  = "yyyy-MM-dd"
+    storage_time_format  = "HH"
+  }
+}
+`, rInt, location, rInt, rInt, rInt, rInt, rInt)
+}
+
+func testAccAzureRMStreamAnalytics_sqlDbOutput(rInt int, location string) string {
+	return fmt.Sprintf(`
+resource "azurerm_resource_group" "test" {
+  name     = "acctestRG-%d"
+  location = "%s"
 }
 
 resource "azurerm_sql_server" "test" {
@@ -319,53 +479,143 @@ resource "azurerm_sql_server" "test" {
   resource_group_name          = "${azurerm_resource_group.test.name}"
   location                     = "${azurerm_resource_group.test.location}"
   version                      = "12.0"
-  administrator_login = "mradministrator"
+  administrator_login	       = "mradministrator"
   administrator_login_password = "thisIsDog11"
 }
 
 resource "azurerm_sql_database" "test" {
   name                = "acctestsqldb-%d"
   resource_group_name = "${azurerm_resource_group.test.name}"
-  location = "${azurerm_resource_group.test.location}"
-  server_name = "${azurerm_sql_server.test.name}"
+  location 	      = "${azurerm_resource_group.test.location}"
+  server_name 	      = "${azurerm_sql_server.test.name}"
 }
 
 resource "azurerm_streamanalytics_job" "test" {
-   name                = "accteststreamanalyticsjob-%d"
-   location            = "${azurerm_resource_group.test.location}"
-   resource_group_name = "${azurerm_resource_group.test.name}"
-   sku   = "Standard"
+  name                = "accteststreamanalyticsjob-%d"
+  location            = "${azurerm_resource_group.test.location}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  sku   	      = "Standard"
 
-   input {
-        name = "accteststreaminput-%d"
-        type = "Stream"
-        serialization = "Avro"
+  output {
+    name 	      = "acctestdboutput-%d"
+    serialization     = "Avro"
+    datasource 	      = "Microsoft.Sql/Server/Database"
+    database_server   = "${azurerm_sql_server.test.name}"
+    database_name     = "${azurerm_sql_database.test.name}"
+    database_table    = "something"
+    database_user     = "mradministrator"
+    database_password = "thisIsDog11"
+  }
+ }
+`, rInt, location, rInt, rInt, rInt, rInt)
+}
 
-        datasource = "Microsoft.ServiceBus/EventHub"
+func testAccAzureRMStreamAnalytics_eventHubOutput(rInt int, location string) string {
+	return fmt.Sprintf(`
+resource "azurerm_resource_group" "test" {
+  name     = "acctestRG-%d"
+  location = "%s"
+}
 
-        service_bus_namespace = "${azurerm_eventhub_namespace.test.name}"
-        eventhub_name = "${azurerm_eventhub.test.name}"
-        shared_access_policy_name = "${azurerm_eventhub_authorization_rule.test.name}"
-        shared_access_policy_key = "${azurerm_eventhub_authorization_rule.test.primary_key}"
-        consumer_group_name = "${azurerm_eventhub_consumer_group.test.name}"
-   }
+resource "azurerm_eventhub_namespace" "test" {
+  name                = "acctesteventhubnamespace-%d"
+  location            = "${azurerm_resource_group.test.location}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  sku                 = "Standard"
+  capacity            = 1
+}
 
-   transformation {
-        name = "accteststreamtransformation-%d"
-        query = "select id into [accteststreamoutput-%d] from [accteststreaminput-%d]"
-   }
+resource "azurerm_eventhub" "test" {
+  name                = "acctesteventhub-%d"
+  namespace_name      = "${azurerm_eventhub_namespace.test.name}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  partition_count     = 2
+  message_retention   = 1
+}
 
-   output {
-        name = "accteststreamoutput-%d"
-        serialization = "Avro"
+resource "azurerm_eventhub_authorization_rule" "test" {
+  name 		      = "acctesteventhubauth-%d"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  namespace_name      = "${azurerm_eventhub_namespace.test.name}"
+  eventhub_name       = "${azurerm_eventhub.test.name}"
+  send 		      = true
+}
 
-        datasource = "Microsoft.Sql/Server/Database"
-        database_server = "${azurerm_sql_server.test.name}"
-        database_name = "${azurerm_sql_database.test.name}"
-        database_table = "something"
-        database_user = "mradministrator"
-        database_password = "thisIsDog11"
+resource "azurerm_eventhub_consumer_group" "test" {
+  name 		      = "acctesteventhubconsumer-%d"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  namespace_name      = "${azurerm_eventhub_namespace.test.name}"
+  eventhub_name       = "${azurerm_eventhub.test.name}"
+}
+
+resource "azurerm_streamanalytics_job" "test" {
+  name                = "accteststreamanalyticsjob-%d"
+  location            = "${azurerm_resource_group.test.location}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  sku   	      = "Standard"
+
+  output {
+    name 		      = "acctesteventhuboutput-%d"
+    serialization 	      = "Avro"
+    datasource 		      = "Microsoft.ServiceBus/EventHub"
+    service_bus_namespace     = "${azurerm_eventhub_namespace.test.name}"
+    eventhub_name 	      = "${azurerm_eventhub.test.name}"
+    shared_access_policy_name = "${azurerm_eventhub_authorization_rule.test.name}"
+    shared_access_policy_key  = "${azurerm_eventhub_authorization_rule.test.primary_key}"
   }
 }
-`, rInt, location, rInt, rInt, rInt, rInt, rInt, rInt, rInt, rInt, rInt, rInt, rInt, rInt)
+`, rInt, location, rInt, rInt, rInt, rInt, rInt, rInt)
+}
+
+func testAccAzureRMStreamAnalytics_blobOutput(rInt int, location string) string {
+	return fmt.Sprintf(`
+resource "azurerm_resource_group" "test" {
+  name     = "acctestRG-%d"
+  location = "%s"
+}
+
+resource "azurerm_storage_account" "test" {
+  name                     = "ats%d"
+  resource_group_name      = "${azurerm_resource_group.test.name}"
+  location                 = "${azurerm_resource_group.test.location}"
+  account_tier             = "Standard"
+  account_replication_type = "RAGRS"
+}
+
+resource "azurerm_storage_container" "test" {
+  name                  = "accteststoragecontainer-%d"
+  resource_group_name   = "${azurerm_resource_group.test.name}"
+  storage_account_name  = "${azurerm_storage_account.test.name}"
+  container_access_type = "container"
+}
+
+resource "azurerm_storage_blob" "test" {
+  name = "acctestblob-%d"
+  resource_group_name    = "${azurerm_resource_group.test.name}"
+  storage_account_name   = "${azurerm_storage_account.test.name}"
+  storage_container_name = "${azurerm_storage_container.test.name}"
+  type = "block"
+}
+
+resource "azurerm_streamanalytics_job" "test" {
+  name                = "accteststreamanalyticsjob-%d"
+  location            = "${azurerm_resource_group.test.location}"
+  resource_group_name = "${azurerm_resource_group.test.name}"
+  sku   	      = "Standard"
+
+  output {
+    name 	  = "acctestbloboutput-%d"
+    serialization = "Json"
+    encoding 	  = "UTF8"
+    datasource 	  = "Microsoft.Storage/Blob"
+
+    storage_account_name   = "${azurerm_storage_account.test.name}"
+      storage_account_key  = "${azurerm_storage_account.test.primary_access_key}"
+      storage_container    = "${azurerm_storage_container.test.name}"
+      storage_path_pattern = "/test/{date}/{time}/test.json"
+      storage_date_format  = "yyyy-MM-dd"
+      storage_time_format  = "HH"
+  }
+}
+`, rInt, location, rInt, rInt, rInt, rInt, rInt)
 }
