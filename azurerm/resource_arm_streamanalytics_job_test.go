@@ -400,15 +400,15 @@ resource "azurerm_eventhub" "test" {
 }
 
 resource "azurerm_eventhub_authorization_rule" "test" {
-  name 	              = "acctesteventhubauth-%d"
+  name                = "acctesteventhubauth-%d"
   resource_group_name = "${azurerm_resource_group.test.name}"
   namespace_name      = "${azurerm_eventhub_namespace.test.name}"
   eventhub_name       = "${azurerm_eventhub.test.name}"
-  listen 	      = true
+  listen              = true
 }
 
 resource "azurerm_eventhub_consumer_group" "test" {
-  name 		      = "acctesteventhubconsumer-%d"
+  name                = "acctesteventhubconsumer-%d"
   resource_group_name = "${azurerm_resource_group.test.name}"
   namespace_name      = "${azurerm_eventhub_namespace.test.name}"
   eventhub_name       = "${azurerm_eventhub.test.name}"
@@ -418,16 +418,16 @@ resource "azurerm_streamanalytics_job" "test" {
   name                = "accteststreamanalyticsjob-%d"
   location            = "${azurerm_resource_group.test.location}"
   resource_group_name = "${azurerm_resource_group.test.name}"
-  sku   	      = "Standard"
+  sku                 = "Standard"
 
   input {
-    name 	  = "acctesteventhubinput-%d"
-    type 	  = "Stream"
+    name          = "acctesteventhubinput-%d"
+    type          = "Stream"
     serialization = "Avro"
-    datasource 	  = "Microsoft.ServiceBus/EventHub"
+    datasource    = "Microsoft.ServiceBus/EventHub"
 
     service_bus_namespace     = "${azurerm_eventhub_namespace.test.name}"
-    eventhub_name 	      = "${azurerm_eventhub.test.name}"
+    eventhub_name             = "${azurerm_eventhub.test.name}"
     shared_access_policy_name = "${azurerm_eventhub_authorization_rule.test.name}"
     shared_access_policy_key  = "${azurerm_eventhub_authorization_rule.test.primary_key}"
     consumer_group_name       = "${azurerm_eventhub_consumer_group.test.name}"
@@ -459,22 +459,22 @@ resource "azurerm_storage_container" "test" {
 }
 
 resource "azurerm_storage_blob" "test" {
-  name 			 = "acctestblob-%d"
+  name                   = "acctestblob-%d"
   resource_group_name    = "${azurerm_resource_group.test.name}"
   storage_account_name   = "${azurerm_storage_account.test.name}"
   storage_container_name = "${azurerm_storage_container.test.name}"
-  type 			 = "block"
+  type                   = "block"
 }
 
 resource "azurerm_streamanalytics_job" "test" {
   name                = "accteststreamanalyticsjob-%d"
   location            = "${azurerm_resource_group.test.location}"
   resource_group_name = "${azurerm_resource_group.test.name}"
-  sku   	      = "Standard"
+  sku                 = "Standard"
 
   input {
-    name 	  = "acctestblobinput-%d"
-    type 	  = "Reference"
+    name          = "acctestblobinput-%d"
+    type          = "Reference"
     serialization = "Json"
     encoding      = "UTF8"
     datasource    = "Microsoft.Storage/Blob"
@@ -502,27 +502,27 @@ resource "azurerm_sql_server" "test" {
   resource_group_name          = "${azurerm_resource_group.test.name}"
   location                     = "${azurerm_resource_group.test.location}"
   version                      = "12.0"
-  administrator_login	       = "mradministrator"
+  administrator_login          = "mradministrator"
   administrator_login_password = "thisIsDog11"
 }
 
 resource "azurerm_sql_database" "test" {
   name                = "acctestsqldb-%d"
   resource_group_name = "${azurerm_resource_group.test.name}"
-  location 	      = "${azurerm_resource_group.test.location}"
-  server_name 	      = "${azurerm_sql_server.test.name}"
+  location            = "${azurerm_resource_group.test.location}"
+  server_name         = "${azurerm_sql_server.test.name}"
 }
 
 resource "azurerm_streamanalytics_job" "test" {
   name                = "accteststreamanalyticsjob-%d"
   location            = "${azurerm_resource_group.test.location}"
   resource_group_name = "${azurerm_resource_group.test.name}"
-  sku   	      = "Standard"
+  sku                 = "Standard"
 
   output {
-    name 	      = "acctestdboutput-%d"
+    name              = "acctestdboutput-%d"
     serialization     = "Avro"
-    datasource 	      = "Microsoft.Sql/Server/Database"
+    datasource        = "Microsoft.Sql/Server/Database"
     database_server   = "${azurerm_sql_server.test.name}"
     database_name     = "${azurerm_sql_database.test.name}"
     database_table    = "something"
@@ -557,15 +557,15 @@ resource "azurerm_eventhub" "test" {
 }
 
 resource "azurerm_eventhub_authorization_rule" "test" {
-  name 		      = "acctesteventhubauth-%d"
+  name                = "acctesteventhubauth-%d"
   resource_group_name = "${azurerm_resource_group.test.name}"
   namespace_name      = "${azurerm_eventhub_namespace.test.name}"
   eventhub_name       = "${azurerm_eventhub.test.name}"
-  send 		      = true
+  send                = true
 }
 
 resource "azurerm_eventhub_consumer_group" "test" {
-  name 		      = "acctesteventhubconsumer-%d"
+  name                = "acctesteventhubconsumer-%d"
   resource_group_name = "${azurerm_resource_group.test.name}"
   namespace_name      = "${azurerm_eventhub_namespace.test.name}"
   eventhub_name       = "${azurerm_eventhub.test.name}"
@@ -575,14 +575,14 @@ resource "azurerm_streamanalytics_job" "test" {
   name                = "accteststreamanalyticsjob-%d"
   location            = "${azurerm_resource_group.test.location}"
   resource_group_name = "${azurerm_resource_group.test.name}"
-  sku   	      = "Standard"
+  sku                 = "Standard"
 
   output {
-    name 		      = "acctesteventhuboutput-%d"
-    serialization 	      = "Avro"
-    datasource 		      = "Microsoft.ServiceBus/EventHub"
+    name                      = "acctesteventhuboutput-%d"
+    serialization             = "Avro"
+    datasource                = "Microsoft.ServiceBus/EventHub"
     service_bus_namespace     = "${azurerm_eventhub_namespace.test.name}"
-    eventhub_name 	      = "${azurerm_eventhub.test.name}"
+    eventhub_name             = "${azurerm_eventhub.test.name}"
     shared_access_policy_name = "${azurerm_eventhub_authorization_rule.test.name}"
     shared_access_policy_key  = "${azurerm_eventhub_authorization_rule.test.primary_key}"
   }
@@ -613,30 +613,30 @@ resource "azurerm_storage_container" "test" {
 }
 
 resource "azurerm_storage_blob" "test" {
-  name = "acctestblob-%d"
+  name                   = "acctestblob-%d"
   resource_group_name    = "${azurerm_resource_group.test.name}"
   storage_account_name   = "${azurerm_storage_account.test.name}"
   storage_container_name = "${azurerm_storage_container.test.name}"
-  type = "block"
+  type                   = "block"
 }
 
 resource "azurerm_streamanalytics_job" "test" {
   name                = "accteststreamanalyticsjob-%d"
   location            = "${azurerm_resource_group.test.location}"
   resource_group_name = "${azurerm_resource_group.test.name}"
-  sku   	      = "Standard"
+  sku                 = "Standard"
 
   output {
-    name 	  = "acctestbloboutput-%d"
+    name          = "acctestbloboutput-%d"
     serialization = "Json"
-    encoding 	  = "UTF8"
-    datasource 	  = "Microsoft.Storage/Blob"
+    encoding      = "UTF8"
+    datasource    = "Microsoft.Storage/Blob"
 
-    storage_account_name   = "${azurerm_storage_account.test.name}"
-      storage_account_key  = "${azurerm_storage_account.test.primary_access_key}"
-      storage_container    = "${azurerm_storage_container.test.name}"
-      storage_path_pattern = "/test/{date}/{time}/test.json"
-      storage_time_format  = "HH"
+    storage_account_name = "${azurerm_storage_account.test.name}"
+    storage_account_key  = "${azurerm_storage_account.test.primary_access_key}"
+    storage_container    = "${azurerm_storage_container.test.name}"
+    storage_path_pattern = "/test/{date}/{time}/test.json"
+    storage_time_format  = "HH"
   }
 }
 `, rInt, location, rInt, rInt, rInt, rInt, rInt)
@@ -667,16 +667,16 @@ resource "azurerm_eventhub" "test" {
 
 # Create authorization rule for listening on the event hub
 resource "azurerm_eventhub_authorization_rule" "test" {
-  name 		      = "acctesteventhubauth-%d"
+  name                = "acctesteventhubauth-%d"
   resource_group_name = "${azurerm_resource_group.test.name}"
   namespace_name      = "${azurerm_eventhub_namespace.test.name}"
   eventhub_name       = "${azurerm_eventhub.test.name}"
-  listen 	      = true
+  listen              = true
 }
 
 # Create consumer group on the event hub
 resource "azurerm_eventhub_consumer_group" "test" {
-  name 		      = "acctesteventhubconsumer-%d"
+  name                = "acctesteventhubconsumer-%d"
   resource_group_name = "${azurerm_resource_group.test.name}"
   namespace_name      = "${azurerm_eventhub_namespace.test.name}"
   eventhub_name       = "${azurerm_eventhub.test.name}"
@@ -687,7 +687,7 @@ resource "azurerm_sql_server" "test" {
   resource_group_name          = "${azurerm_resource_group.test.name}"
   location                     = "${azurerm_resource_group.test.location}"
   version                      = "12.0"
-  administrator_login 	     = "mradministrator"
+  administrator_login          = "mradministrator"
   administrator_login_password = "thisIsDog11"
 }
 
@@ -705,12 +705,12 @@ resource "azurerm_streamanalytics_job" "test" {
   sku                 = "Standard"
 
   input {
-    name 		      = "accteststreaminput-%d"
-    type 		      = "Stream"
-    serialization 	      = "Avro"
-    datasource 		      = "Microsoft.ServiceBus/EventHub"
+    name                      = "accteststreaminput-%d"
+    type                      = "Stream"
+    serialization             = "Avro"
+    datasource                = "Microsoft.ServiceBus/EventHub"
     service_bus_namespace     = "${azurerm_eventhub_namespace.test.name}"
-    eventhub_name 	      = "${azurerm_eventhub.test.name}"
+    eventhub_name             = "${azurerm_eventhub.test.name}"
     shared_access_policy_name = "${azurerm_eventhub_authorization_rule.test.name}"
     shared_access_policy_key  = "${azurerm_eventhub_authorization_rule.test.primary_key}"
     consumer_group_name       = "${azurerm_eventhub_consumer_group.test.name}"
@@ -722,9 +722,9 @@ resource "azurerm_streamanalytics_job" "test" {
   }
 
   output {
-    name 	      = "accteststreamoutput-%d"
+    name              = "accteststreamoutput-%d"
     serialization     = "Avro"
-    datasource 	      = "Microsoft.Sql/Server/Database"
+    datasource        = "Microsoft.Sql/Server/Database"
     database_server   = "${azurerm_sql_server.test.name}"
     database_name     = "${azurerm_sql_database.test.name}"
     database_table    = "something"

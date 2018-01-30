@@ -805,6 +805,9 @@ func resourceArmStreamAnalyticsParseOutput(data map[string]interface{}) (*stream
 func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (streamanalytics.BasicOutputDataSource, error) {
 	datasource := data["datasource"].(string)
 
+	extractAndValidateProp := extractAndValidateRequiredProperty(data)
+	extractOptionalProp :=  extractOptionalProperty(data)
+
 	switch datasource {
 	case string(streamanalytics.TypeMicrosoftDataLakeAccounts):
 		// TODO Validate inputs
@@ -834,23 +837,23 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 		return &result, nil
 
 	case string(streamanalytics.TypeMicrosoftServiceBusEventHub):
-		namespace, err := extractAndValidateRequiredProperty(data, "service_bus_namespace")
+		namespace, err := extractAndValidateProp("service_bus_namespace")
 		if err != nil {
 			return nil, err
 		}
-		eventHub, err := extractAndValidateRequiredProperty(data, "eventhub_name")
+		eventHub, err := extractAndValidateProp("eventhub_name")
 		if err != nil {
 			return nil, err
 		}
-		policyName, err := extractAndValidateRequiredProperty(data, "shared_access_policy_name")
+		policyName, err := extractAndValidateProp("shared_access_policy_name")
 		if err != nil {
 			return nil, err
 		}
-		policyKey, err := extractAndValidateRequiredProperty(data, "shared_access_policy_key")
+		policyKey, err := extractAndValidateProp("shared_access_policy_key")
 		if err != nil {
 			return nil, err
 		}
-		partitionKey := extractOptionalProperty(data, "eventhub_partition_key")
+		partitionKey := extractOptionalProp("eventhub_partition_key")
 
 		result := streamanalytics.EventHubOutputDataSource{
 			Type: streamanalytics.TypeMicrosoftServiceBusEventHub,
@@ -866,23 +869,23 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 		return &result, nil
 
 	case string(streamanalytics.TypeMicrosoftSQLServerDatabase):
-		databaseServer, err := extractAndValidateRequiredProperty(data, "database_server")
+		databaseServer, err := extractAndValidateProp("database_server")
 		if err != nil {
 			return nil, err
 		}
-		databaseName, err := extractAndValidateRequiredProperty(data, "database_name")
+		databaseName, err := extractAndValidateProp("database_name")
 		if err != nil {
 			return nil, err
 		}
-		databaseTable, err := extractAndValidateRequiredProperty(data, "database_table")
+		databaseTable, err := extractAndValidateProp("database_table")
 		if err != nil {
 			return nil, err
 		}
-		databaseUser, err := extractAndValidateRequiredProperty(data, "database_user")
+		databaseUser, err := extractAndValidateProp("database_user")
 		if err != nil {
 			return nil, err
 		}
-		databasePassword, err := extractAndValidateRequiredProperty(data, "database_password")
+		databasePassword, err := extractAndValidateProp("database_password")
 		if err != nil {
 			return nil, err
 		}
@@ -901,24 +904,24 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 		return &result, nil
 
 	case string(streamanalytics.TypeMicrosoftStorageBlob):
-		accountName, err := extractAndValidateRequiredProperty(data, "storage_account_name")
+		accountName, err := extractAndValidateProp("storage_account_name")
 		if err != nil {
 			return nil, err
 		}
-		accountKey, err := extractAndValidateRequiredProperty(data, "storage_account_key")
+		accountKey, err := extractAndValidateProp("storage_account_key")
 		if err != nil {
 			return nil, err
 		}
-		container, err := extractAndValidateRequiredProperty(data, "storage_container")
+		container, err := extractAndValidateProp("storage_container")
 		if err != nil {
 			return nil, err
 		}
-		pathPattern, err := extractAndValidateRequiredProperty(data, "storage_path_pattern")
+		pathPattern, err := extractAndValidateProp("storage_path_pattern")
 		if err != nil {
 			return nil, err
 		}
-		dateFormat := extractOptionalProperty(data, "storage_date_format")
-		timeFormat := extractOptionalProperty(data, "storage_time_format")
+		dateFormat := extractOptionalProp("storage_date_format")
+		timeFormat := extractOptionalProp("storage_time_format")
 
 		accounts := make([]streamanalytics.StorageAccount, 1)
 		accounts[0].AccountName = accountName
@@ -942,22 +945,25 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 	}
 }
 
-func extractAndValidateRequiredProperty(props map[string]interface{}, k string) (*string, error) {
-	value := props[k].(string)
-	if len(value) > 0 {
-		return utils.String(value), nil
+func extractAndValidateRequiredProperty(props map[string]interface{}) func(string) (*string, error) {
+	return func(k string) (*string, error) {
+		value := props[k].(string)
+		if len(value) > 0 {
+			return utils.String(value), nil
+		}
+		return nil, fmt.Errorf("Missing value for required property `%s`", k)
 	}
-
-	return nil, fmt.Errorf("Missing value for required property `%s`", k)
 }
 
-func extractOptionalProperty(props map[string]interface{}, k string) *string {
-	value := props[k].(string)
-	if len(value) > 0 {
-		return utils.String(value)
-	}
+func extractOptionalProperty(props map[string]interface{}) func(string) *string {
+	return func (k string) *string {
+		value := props[k].(string)
+		if len(value) > 0 {
+			return utils.String(value)
+		}
 
-	return nil
+		return nil
+	}
 }
 
 func parseArmStreamAnalyticsReferenceDatasource(data map[string]interface{}) (streamanalytics.BasicReferenceInputDataSource, error) {
