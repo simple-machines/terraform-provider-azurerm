@@ -318,6 +318,8 @@ func TestAccAzureRMStreamAnalyticsJob_transformation(t *testing.T) {
 	})
 }
 
+//TODO datalake output
+
 func testCheckAzureRMStreamAnalyticsJobDestroy(s *terraform.State) error {
 	conn := testAccProvider.Meta().(*ArmClient).streamAnalyticsClient
 	ctx := testAccProvider.Meta().(*ArmClient).StopContext
@@ -634,7 +636,6 @@ resource "azurerm_streamanalytics_job" "test" {
       storage_account_key  = "${azurerm_storage_account.test.primary_access_key}"
       storage_container    = "${azurerm_storage_container.test.name}"
       storage_path_pattern = "/test/{date}/{time}/test.json"
-      storage_date_format  = "yyyy-MM-dd"
       storage_time_format  = "HH"
   }
 }

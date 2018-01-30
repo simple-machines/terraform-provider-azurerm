@@ -803,7 +803,6 @@ func resourceArmStreamAnalyticsParseOutput(data map[string]interface{}) (*stream
 }
 
 func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (streamanalytics.BasicOutputDataSource, error) {
-	name := data["name"].(string)
 	datasource := data["datasource"].(string)
 
 	switch datasource {
@@ -835,104 +834,104 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 		return &result, nil
 
 	case string(streamanalytics.TypeMicrosoftServiceBusEventHub):
-		if data["service_bus_namespace"] == nil {
-			return nil, fmt.Errorf("Event Hub output %s missing required field service_bus_namespace", name)
+		namespace, err := extractAndValidateRequiredProperty(data, "service_bus_namespace")
+		if err != nil {
+			return nil, err
 		}
-		namespace := data["service_bus_namespace"].(string)
-
-		if data["eventhub_name"] == nil {
-			return nil, fmt.Errorf("Event Hub output %s missing required field eventhub_name", name)
+		eventHub, err := extractAndValidateRequiredProperty(data, "eventhub_name")
+		if err != nil {
+			return nil, err
 		}
-		eventhub := data["eventhub_name"].(string)
-
-		if data["shared_access_policy_name"] == nil {
-			return nil, fmt.Errorf("Event Hub output %s missing required field shared_access_policy_name", name)
+		policyName, err := extractAndValidateRequiredProperty(data, "shared_access_policy_name")
+		if err != nil {
+			return nil, err
 		}
-		policyName := data["shared_access_policy_name"].(string)
-
-		if data["shared_access_policy_key"] == nil {
-			return nil, fmt.Errorf("Event Hub output %s missing required field shared_access_policy_key", name)
+		policyKey, err := extractAndValidateRequiredProperty(data, "shared_access_policy_key")
+		if err != nil {
+			return nil, err
 		}
-		policyKey := data["shared_access_policy_key"].(string)
+		partitionKey := extractOptionalProperty(data, "eventhub_partition_key")
 
 		result := streamanalytics.EventHubOutputDataSource{
 			Type: streamanalytics.TypeMicrosoftServiceBusEventHub,
 			EventHubOutputDataSourceProperties: &streamanalytics.EventHubOutputDataSourceProperties{
-				ServiceBusNamespace:    &namespace,
-				SharedAccessPolicyName: &policyName,
-				SharedAccessPolicyKey:  &policyKey,
-				EventHubName:           &eventhub,
+				ServiceBusNamespace:    namespace,
+				SharedAccessPolicyName: policyName,
+				SharedAccessPolicyKey:  policyKey,
+				EventHubName:           eventHub,
+				PartitionKey:		partitionKey,
 			},
-		}
-
-		if v := data["eventhub_partition_key"]; v != nil {
-			value := v.(string)
-			result.EventHubOutputDataSourceProperties.PartitionKey = &value
 		}
 
 		return &result, nil
 
 	case string(streamanalytics.TypeMicrosoftSQLServerDatabase):
-		// TODO Validate fields
-		databaseServer := data["database_server"].(string)
-		databaseName := data["database_name"].(string)
-		databaseTable := data["database_table"].(string)
-		databaseUser := data["database_user"].(string)
-		databasePassword := data["database_password"].(string)
+		databaseServer, err := extractAndValidateRequiredProperty(data, "database_server")
+		if err != nil {
+			return nil, err
+		}
+		databaseName, err := extractAndValidateRequiredProperty(data, "database_name")
+		if err != nil {
+			return nil, err
+		}
+		databaseTable, err := extractAndValidateRequiredProperty(data, "database_table")
+		if err != nil {
+			return nil, err
+		}
+		databaseUser, err := extractAndValidateRequiredProperty(data, "database_user")
+		if err != nil {
+			return nil, err
+		}
+		databasePassword, err := extractAndValidateRequiredProperty(data, "database_password")
+		if err != nil {
+			return nil, err
+		}
 
 		result := streamanalytics.AzureSQLDatabaseOutputDataSource{
 			Type: streamanalytics.TypeMicrosoftSQLServerDatabase,
 			AzureSQLDatabaseOutputDataSourceProperties: &streamanalytics.AzureSQLDatabaseOutputDataSourceProperties{
-				Server:   &databaseServer,
-				Database: &databaseName,
-				User:     &databaseUser,
-				Password: &databasePassword,
-				Table:    &databaseTable,
+				Server:   databaseServer,
+				Database: databaseName,
+				User:     databaseUser,
+				Password: databasePassword,
+				Table:    databaseTable,
 			},
 		}
 
 		return &result, nil
 
 	case string(streamanalytics.TypeMicrosoftStorageBlob):
-		// TODO Verify validation
-		if data["storage_account_name"] == nil {
-			return nil, fmt.Errorf("Output %s missing storage_account_name field", name)
+		accountName, err := extractAndValidateRequiredProperty(data, "storage_account_name")
+		if err != nil {
+			return nil, err
 		}
-		if data["storage_account_key"] == nil {
-			return nil, fmt.Errorf("Output %s missing storage_account_key field", name)
+		accountKey, err := extractAndValidateRequiredProperty(data, "storage_account_key")
+		if err != nil {
+			return nil, err
 		}
-		if data["storage_container"] == nil {
-			return nil, fmt.Errorf("Output %s missing storage_container field", name)
+		container, err := extractAndValidateRequiredProperty(data, "storage_container")
+		if err != nil {
+			return nil, err
 		}
-		if data["storage_path_pattern"] == nil {
-			return nil, fmt.Errorf("Output %s missing storage_path_pattern field", name)
+		pathPattern, err := extractAndValidateRequiredProperty(data, "storage_path_pattern")
+		if err != nil {
+			return nil, err
 		}
-		if data["storage_date_format"] == nil {
-			return nil, fmt.Errorf("Output %s missing storage_date_format field", name)
-		}
-		if data["storage_time_format"] == nil {
-			return nil, fmt.Errorf("Output %s missing storage_time_format field", name)
-		}
-
-		accountName := data["storage_account_name"].(string)
-		accountKey := data["storage_account_key"].(string)
-		container := data["storage_container"].(string)
-		pathPattern := data["storage_path_pattern"].(string)
-		dateFormat := data["storage_date_format"].(string)
-		timeFormat := data["storage_time_format"].(string)
+		dateFormat := extractOptionalProperty(data, "storage_date_format")
+		timeFormat := extractOptionalProperty(data, "storage_time_format")
 
 		accounts := make([]streamanalytics.StorageAccount, 1)
-		accounts[0].AccountName = &accountName
-		accounts[0].AccountKey = &accountKey
+		accounts[0].AccountName = accountName
+		accounts[0].AccountKey = accountKey
 
 		result := streamanalytics.BlobOutputDataSource{
 			Type: streamanalytics.TypeMicrosoftStorageBlob,
 			BlobOutputDataSourceProperties: &streamanalytics.BlobOutputDataSourceProperties{
 				StorageAccounts: &accounts,
-				Container:       &container,
-				PathPattern:     &pathPattern,
-				DateFormat:      &dateFormat,
-				TimeFormat:      &timeFormat,
+				Container:       container,
+				PathPattern:     pathPattern,
+				DateFormat:      dateFormat,
+				TimeFormat:      timeFormat,
 			},
 		}
 
@@ -941,6 +940,24 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 	default:
 		return nil, fmt.Errorf("Unknown output datasource type: %q", datasource)
 	}
+}
+
+func extractAndValidateRequiredProperty(props map[string]interface{}, k string) (*string, error) {
+	value := props[k].(string)
+	if len(value) > 0 {
+		return utils.String(value), nil
+	}
+
+	return nil, fmt.Errorf("Missing value for required property `%s`", k)
+}
+
+func extractOptionalProperty(props map[string]interface{}, k string) *string {
+	value := props[k].(string)
+	if len(value) > 0 {
+		return utils.String(value)
+	}
+
+	return nil
 }
 
 func parseArmStreamAnalyticsReferenceDatasource(data map[string]interface{}) (streamanalytics.BasicReferenceInputDataSource, error) {
