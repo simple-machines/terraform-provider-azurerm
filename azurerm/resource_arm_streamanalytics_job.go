@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/arm/streamanalytics"
+	"github.com/Azure/azure-sdk-for-go/services/streamanalytics/mgmt/2016-03-01/streamanalytics"
 	"github.com/Azure/go-autorest/autorest/date"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/helper/validation"
@@ -87,6 +87,7 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			"data_locale": {
 				Type:        schema.TypeString,
 				Description: "Name of a locale: [en-US], en-AU, fr-FR, ...",
+				Default:     "en-US",
 				Optional:    true,
 				// TODO Validate
 			},
@@ -94,6 +95,7 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			"late_arrival_max_delay": {
 				Description:  "Maximum time to wait for a late arrival in seconds. -1 means wait forever.",
 				Type:         schema.TypeInt,
+				Default:      5,
 				Optional:     true,
 				ValidateFunc: validation.IntBetween(-1, 1814399),
 			},
@@ -457,6 +459,7 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 
 func resourceArmStreamAnalyticsJobCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).streamAnalyticsClient
+	ctx := meta.(*ArmClient).StopContext
 
 	resourceGroupName := d.Get("resource_group_name").(string)
 	jobName := d.Get("name").(string)
@@ -578,13 +581,13 @@ func resourceArmStreamAnalyticsJobCreate(d *schema.ResourceData, meta interface{
 	// a get.
 	ifMatch := ""     // TODO: Etag if resource to update.
 	ifNoneMatch := "" // TODO: "*" to create but not update.
-	_, errOut := client.CreateOrReplace(job, resourceGroupName, jobName, ifMatch, ifNoneMatch, make(chan struct{}))
-	if err := <-errOut; err != nil {
+	_, err := client.CreateOrReplace(ctx, job, resourceGroupName, jobName, ifMatch, ifNoneMatch)
+	if err != nil {
 		return fmt.Errorf("Error issuing AzureRM create request for StreamAnalytics Job %q: %+v",
 			jobName, err)
 	}
 
-	read, err := client.Get(resourceGroupName, jobName, thingsToGet)
+	read, err := client.Get(ctx, resourceGroupName, jobName, thingsToGet)
 	if err != nil {
 		return err
 	}
@@ -599,6 +602,7 @@ func resourceArmStreamAnalyticsJobCreate(d *schema.ResourceData, meta interface{
 
 func resourceArmStreamAnalyticsJobRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).streamAnalyticsClient
+	ctx := meta.(*ArmClient).StopContext
 
 	id, err := parseAzureResourceID(d.Id())
 	if err != nil {
@@ -607,7 +611,7 @@ func resourceArmStreamAnalyticsJobRead(d *schema.ResourceData, meta interface{})
 	resourceGroupName := id.ResourceGroup
 	jobName := id.Path["streamingjobs"]
 
-	res, err := client.Get(resourceGroupName, jobName, thingsToGet)
+	res, err := client.Get(ctx, resourceGroupName, jobName, thingsToGet)
 
 	if err != nil {
 		if utils.ResponseWasNotFound(res.Response) {
@@ -636,7 +640,10 @@ func resourceArmStreamAnalyticsJobRead(d *schema.ResourceData, meta interface{})
 	}
 	d.Set("out_of_order_policy", string(properties.EventsOutOfOrderPolicy))
 	d.Set("output_error_policy", string(properties.OutputErrorPolicy))
-	d.Set("out_of_order_max_delay", int(*properties.EventsOutOfOrderMaxDelayInSeconds))
+
+	if v := properties.EventsOutOfOrderMaxDelayInSeconds; v != nil {
+		d.Set("out_of_order_max_delay", int(*properties.EventsOutOfOrderMaxDelayInSeconds))
+	}
 	d.Set("late_arrival_max_delay", int(*properties.EventsLateArrivalMaxDelayInSeconds))
 	d.Set("data_locale", *properties.DataLocale)
 	d.Set("created_date", string(properties.CreatedDate.Format(time.RFC3339)))
@@ -699,12 +706,13 @@ func resourceArmStreamAnalyticsJobRead(d *schema.ResourceData, meta interface{})
 
 func resourceArmStreamAnalyticsJobDelete(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).streamAnalyticsClient
+	ctx := meta.(*ArmClient).StopContext
 
 	resourceGroupName := d.Get("resource_group_name").(string)
 	jobName := d.Get("name").(string)
 
-	_, errOut := client.Delete(resourceGroupName, jobName, make(chan struct{}))
-	if err := <-errOut; err != nil {
+	_, err := client.Delete(ctx, resourceGroupName, jobName)
+	if err != nil {
 		return fmt.Errorf("Error issuing AzureRM delete request for StreamAnalytics Job %q: %+v",
 			jobName, err)
 	}
@@ -794,7 +802,7 @@ func resourceArmStreamAnalyticsParseOutput(data map[string]interface{}) (*stream
 	}, nil
 }
 
-func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (streamanalytics.OutputDataSource, error) {
+func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (streamanalytics.BasicOutputDataSource, error) {
 	name := data["name"].(string)
 	datasource := data["datasource"].(string)
 
@@ -935,12 +943,12 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 	}
 }
 
-func parseArmStreamAnalyticsReferenceDatasource(data map[string]interface{}) (streamanalytics.ReferenceInputDataSource, error) {
+func parseArmStreamAnalyticsReferenceDatasource(data map[string]interface{}) (streamanalytics.BasicReferenceInputDataSource, error) {
 	name := data["name"].(string)
 	datasource := data["datasource"].(string)
 
 	switch datasource {
-	case string(streamanalytics.TypeReferenceInputDataSourceTypeMicrosoftStorageBlob):
+	case string(streamanalytics.TypeBasicReferenceInputDataSourceTypeMicrosoftStorageBlob):
 
 		if data["storage_account_name"] == nil {
 			return nil, fmt.Errorf("Reference input %s missing storage_account_name field", name)
@@ -974,7 +982,7 @@ func parseArmStreamAnalyticsReferenceDatasource(data map[string]interface{}) (st
 		accounts[0].AccountKey = &accountKey
 
 		return &streamanalytics.BlobReferenceInputDataSource{
-			Type: streamanalytics.TypeReferenceInputDataSourceTypeMicrosoftStorageBlob,
+			Type: streamanalytics.TypeBasicReferenceInputDataSourceTypeMicrosoftStorageBlob,
 			BlobReferenceInputDataSourceProperties: &streamanalytics.BlobReferenceInputDataSourceProperties{
 				StorageAccounts: &accounts,
 				Container:       &container,
@@ -989,12 +997,12 @@ func parseArmStreamAnalyticsReferenceDatasource(data map[string]interface{}) (st
 	}
 }
 
-func parseArmStreamAnalyticsStreamDatasource(data map[string]interface{}) (streamanalytics.StreamInputDataSource, error) {
+func parseArmStreamAnalyticsStreamDatasource(data map[string]interface{}) (streamanalytics.BasicStreamInputDataSource, error) {
 	name := data["name"].(string)
 	datasource := data["datasource"].(string)
 
 	switch datasource {
-	case string(streamanalytics.TypeStreamInputDataSourceTypeMicrosoftDevicesIotHubs):
+	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftDevicesIotHubs):
 		if data["iot_hub_namespace"] == nil {
 			return nil, fmt.Errorf("Input %s missing iot_hub_namespace field", name)
 		}
@@ -1014,7 +1022,7 @@ func parseArmStreamAnalyticsStreamDatasource(data map[string]interface{}) (strea
 		accessPolicyKey := data["shared_access_policy_key"].(string)
 
 		result := streamanalytics.IoTHubStreamInputDataSource{
-			Type: streamanalytics.TypeStreamInputDataSourceTypeMicrosoftDevicesIotHubs,
+			Type: streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftDevicesIotHubs,
 			IoTHubStreamInputDataSourceProperties: &streamanalytics.IoTHubStreamInputDataSourceProperties{
 				IotHubNamespace:        &namespace,
 				SharedAccessPolicyName: &accessPolicyName,
@@ -1030,7 +1038,7 @@ func parseArmStreamAnalyticsStreamDatasource(data map[string]interface{}) (strea
 
 		return &result, nil
 
-	case string(streamanalytics.TypeStreamInputDataSourceTypeMicrosoftServiceBusEventHub):
+	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftServiceBusEventHub):
 		if data["service_bus_namespace"] == nil {
 			return nil, fmt.Errorf("Input %s missing service_bus_namespace field", name)
 		}
@@ -1050,7 +1058,7 @@ func parseArmStreamAnalyticsStreamDatasource(data map[string]interface{}) (strea
 		accessPolicyKey := data["shared_access_policy_key"].(string)
 
 		result := streamanalytics.EventHubStreamInputDataSource{
-			Type: streamanalytics.TypeStreamInputDataSourceTypeMicrosoftServiceBusEventHub,
+			Type: streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftServiceBusEventHub,
 			EventHubStreamInputDataSourceProperties: &streamanalytics.EventHubStreamInputDataSourceProperties{
 				SharedAccessPolicyName: &accessPolicyName,
 				SharedAccessPolicyKey:  &accessPolicyKey,
@@ -1066,7 +1074,7 @@ func parseArmStreamAnalyticsStreamDatasource(data map[string]interface{}) (strea
 
 		return &result, nil
 
-	case string(streamanalytics.TypeStreamInputDataSourceTypeMicrosoftStorageBlob):
+	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftStorageBlob):
 		// TODO Doublecheck required fields, etc.
 		accountName := data["storage_account_name"].(string)
 		accountKey := data["storage_account_key"].(string)
@@ -1081,7 +1089,7 @@ func parseArmStreamAnalyticsStreamDatasource(data map[string]interface{}) (strea
 		accounts[0].AccountKey = &accountKey
 
 		return &streamanalytics.BlobStreamInputDataSource{
-			Type: streamanalytics.TypeStreamInputDataSourceTypeMicrosoftStorageBlob,
+			Type: streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftStorageBlob,
 			BlobStreamInputDataSourceProperties: &streamanalytics.BlobStreamInputDataSourceProperties{
 				StorageAccounts:      &accounts,
 				Container:            &container,
@@ -1099,7 +1107,7 @@ func parseArmStreamAnalyticsStreamDatasource(data map[string]interface{}) (strea
 
 // Parse the serialization parameters out of an `input{...}` or `output{...}`
 // section.
-func parseArmStreamAnalyticsSerialization(data map[string]interface{}) (streamanalytics.Serialization, error) {
+func parseArmStreamAnalyticsSerialization(data map[string]interface{}) (streamanalytics.BasicSerialization, error) {
 	serialization := data["serialization"].(string)
 
 	switch strings.ToUpper(serialization) {
@@ -1151,7 +1159,7 @@ func parseArmStreamAnalyticsSerialization(data map[string]interface{}) (streaman
 	}
 }
 
-func flattenAndSetArmStreamAnalyticsSerialization(d *map[string]interface{}, input streamanalytics.Serialization) error {
+func flattenAndSetArmStreamAnalyticsSerialization(d *map[string]interface{}, input streamanalytics.BasicSerialization) error {
 	result := *d
 
 	if _, ok := input.AsAvroSerialization(); ok {
@@ -1269,8 +1277,11 @@ func flattenStreamAnalyticsJobOutput(config *streamanalytics.Output) (*map[strin
 	result["name"] = name
 
 	properties := *config.OutputProperties
-	if err := flattenAndSetArmStreamAnalyticsSerialization(&result, properties.Serialization); err != nil {
-		return nil, fmt.Errorf("Nope")
+
+	if _, ok := properties.Datasource.AsAzureSQLDatabaseOutputDataSource(); !ok {
+		if err := flattenAndSetArmStreamAnalyticsSerialization(&result, properties.Serialization); err != nil {
+			return nil, fmt.Errorf("Nope")
+		}
 	}
 
 	if ds, ok := properties.Datasource.AsAzureDataLakeStoreOutputDataSource(); ok {
@@ -1364,15 +1375,15 @@ func validateArmStreamAnalyticsInputDatasource(v interface{}, k string) (ws []st
 	value := v.(string)
 
 	switch value {
-	case string(streamanalytics.TypeReferenceInputDataSourceTypeMicrosoftStorageBlob):
+	case string(streamanalytics.TypeBasicReferenceInputDataSourceTypeMicrosoftStorageBlob):
 		return
 	// No need to check this case as it's identical to the above.
 	//
 	// case string(streamanalytics.TypeStreamInputDataSourceTypeMicrosoftStorageBlob):
 	// 	return
-	case string(streamanalytics.TypeStreamInputDataSourceTypeMicrosoftDevicesIotHubs):
+	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftDevicesIotHubs):
 		return
-	case string(streamanalytics.TypeStreamInputDataSourceTypeMicrosoftServiceBusEventHub):
+	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftServiceBusEventHub):
 		return
 	default:
 		errors = append(errors, fmt.Errorf("Unknown input datasource: %q", value))
