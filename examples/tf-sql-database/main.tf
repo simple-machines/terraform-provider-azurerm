@@ -5,6 +5,8 @@
 #   tenant_id       = "REPLACE-WITH-YOUR-TENANT-ID"
 # }
 
+provider "azurerm" {}
+
 resource "azurerm_resource_group" "rg" {
   name     = "${var.resource_group}"
   location = "${var.location}"
@@ -36,4 +38,19 @@ resource "azurerm_sql_firewall_rule" "fw" {
   server_name         = "${azurerm_sql_server.server.name}"
   start_ip_address    = "${var.start_ip_address}"
   end_ip_address      = "${var.end_ip_address}"
+}
+
+resource "azurerm_sql_table" "tb" {
+  tablename    = "sqltablefromtf"
+
+  database {
+    name = "${azurerm_sql_database.db.name}"
+    server = "${azurerm_sql_server.server.fully_qualified_domain_name}",
+    username = "${azurerm_sql_server.server.administrator_login}",
+    password = "${azurerm_sql_server.server.administrator_login_password}"
+  }
+
+  columns {
+    "Column1"="testing"
+  }
 }

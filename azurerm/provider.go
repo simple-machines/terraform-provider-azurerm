@@ -163,6 +163,7 @@ func Provider() terraform.ResourceProvider {
 			"azurerm_sql_elasticpool":             resourceArmSqlElasticPool(),
 			"azurerm_sql_firewall_rule":           resourceArmSqlFirewallRule(),
 			"azurerm_sql_server":                  resourceArmSqlServer(),
+			"azurerm_sql_table":                   resourceArmSqlTable(),
 			"azurerm_storage_account":             resourceArmStorageAccount(),
 			"azurerm_storage_blob":                resourceArmStorageBlob(),
 			"azurerm_storage_container":           resourceArmStorageContainer(),
