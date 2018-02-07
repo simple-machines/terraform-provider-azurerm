@@ -277,12 +277,8 @@ func closeRows(r *sql.Rows) error {
 }
 
 func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
-
-	log.Printf("INTO TABLE READ")
-
 	client := meta.(*ArmClient)
 	subscriptionId := client.subscriptionId
-	log.Printf("client %v, subscription id %v", client, subscriptionId)
 
 	resourceGroup := d.Get("resource_group_name").(string)
 
@@ -294,14 +290,11 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	name := config["name"].(string)
 	server := config["server"].(string)
 
-	log.Printf("[INFO] Ther server name is %v", server)
-
 	username := config["username"].(string)
 	password := config["password"].(string)
 
 	dsn := "server=" + server + ";user id=" + username + ";password=" + password + ";database=" + name
 
-	log.Printf("The dsn inside the reader is %v", dsn)
 	conn, err := sql.Open("mssql", dsn)
 
 	err = conn.Ping()
@@ -318,28 +311,31 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 
 	defer conn.Close()
 
-	log.Printf("[INFO] Connected to the database to read the table")
+	spHelpRows, err := conn.Query(fmt.Sprintf("sp_help %s", tablename))
 
-	rows, err := conn.Query(fmt.Sprintf("sp_help %s", tablename))
-
-	log.Printf("[INFO] this is after doing sp_help on the tablename")
+	defer closeRows(spHelpRows)
 
 	if err != nil {
 		return fmt.Errorf("Cannot read the of the description of the table %s in database %s", tablename, database)
 	}
 
-	_, defaultTableProperties := getTableProperties(rows)
-	_, columnProperties := getColumnProperties(rows, tablename)
-	_, identityProperties := getIdentityProperties(rows, tablename)
+	err, defaultTableProperties := getTableProperties(spHelpRows)
 
-	// Skip this few result set for the time being
-	rows.NextResultSet()
+	if err != nil {
+		return fmt.Errorf("Unable to obtain the table ")
+	}
+	_, columnProperties := getColumnProperties(spHelpRows, tablename)
+	_, identityProperties := getIdentityProperties(spHelpRows, tablename)
 
-	// Skip this result set for the time being
-	rows.NextResultSet()
+	spHelpIndexRows, err := conn.Query(fmt.Sprintf("sp_helpindex %s", tablename))
 
-	_, indexProperties := getIndexProperties(rows, tablename)
-	_, constraintProperties := getConstraintProperties(rows, tablename)
+	defer closeRows(spHelpIndexRows)
+
+	if err != nil {
+		return fmt.Errorf("Unable to obtain index details of the table %s", err.Error())
+	}
+	_, indexProperties := getIndexProperties(spHelpIndexRows, tablename)
+	_, constraintProperties := getConstraintProperties(spHelpIndexRows, tablename)
 
 	value := map[string]interface{}{}
 
@@ -353,8 +349,6 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	d.Set("table_description", value)
 
 	log.Printf("the database properties are %v", value)
-
-	defer closeRows(rows)
 
 	return nil
 }
@@ -374,9 +368,6 @@ func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		log.Printf("The  name of the table is %s", name)
-		log.Printf("The  owner of the table is %s", owner)
-
 		tableProperties["name"] = name
 		tableProperties["owner"] = owner
 
@@ -387,16 +378,14 @@ func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 }
 
 func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
-	log.Printf("Into getting the identity properties")
 	if !rows.NextResultSet() {
-		log.Printf("M i here inside the identity properties")
 		return fmt.Errorf("Could not read the identity properties from the table %s", tableName), nil
 	}
 
-	var identity string
-	var seed string
-	var increment string
-	var notForReplication string
+	var identity interface{}
+	var seed interface{}
+	var increment interface{}
+	var notForReplication interface{}
 
 	identityProperties := make(map[string]string, 0)
 
@@ -406,10 +395,10 @@ func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		identityProperties["identity"] = identity
-		identityProperties["seed"] = seed
-		identityProperties["increment"] = increment
-		identityProperties["not_for_replication"] = notForReplication
+		identityProperties["identity"] = convertColumnValueToString(&identity)
+		identityProperties["seed"] = convertColumnValueToString(&seed)
+		identityProperties["increment"] = convertColumnValueToString(&increment)
+		identityProperties["not_for_replication"] = convertColumnValueToString(&notForReplication)
 	}
 
 	return nil, []interface{}{identityProperties}
@@ -417,25 +406,25 @@ func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface
 
 func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
 	log.Printf("[INFO] Into getting the index properties")
-	if !rows.NextResultSet() {
-		return fmt.Errorf("Could not read the identity properties from the table %s", tableName), nil
-	}
 
-	var indexName string
-	var indexDescription string
-	var indexKeys string
+	var indexName interface{}
+	var indexDescription interface{}
+	var indexKeys interface{}
 
 	indexProperties := make(map[string]string, 0)
 
+	log.Printf("More into index propperties")
 	for rows.Next() {
 		err := rows.Scan(&indexName, &indexDescription, &indexKeys)
 		if err != nil {
+			log.Printf("the erros is %v", err)
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		indexProperties["index_name"] = indexName
-		indexProperties["index_description"] = indexDescription
-		indexProperties["index_keys"] = indexKeys
+		log.Printf("THe stuff here us %v", indexProperties)
+		indexProperties["index_name"] = convertColumnValueToString(&indexName)
+		indexProperties["index_description"] = convertColumnValueToString(&indexDescription)
+		indexProperties["index_keys"] = convertColumnValueToString(&indexKeys)
 
 	}
 
@@ -448,9 +437,9 @@ func getConstraintProperties(rows *sql.Rows, tableName string) (error, []interfa
 		return fmt.Errorf("Could not read the identity properties from the table %s", tableName), nil
 	}
 
-	var constraintType string
-	var constraintName string
-	var constraintKeys string
+	var constraintType interface{}
+	var constraintName interface{}
+	var constraintKeys interface{}
 
 	constraintProperties := make(map[string]string, 0)
 
