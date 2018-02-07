@@ -261,7 +261,7 @@ func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("Cannot run the query for some reason %v ", err.Error())
 	}
 
-	return nil
+	return resourceArmSqlTableRead(d, meta)
 }
 
 // Go made me do this...
@@ -276,10 +276,16 @@ func closeRows(r *sql.Rows) error {
 }
 
 func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
+
+	log.Printf("INTO TABLE READ")
+
 	client := meta.(*ArmClient)
 	subscriptionId := client.subscriptionId
+	log.Printf("client %v, subscription id %v", client, subscriptionId)
 
-	resourceGroup := d.Get("resource_group_namne").(string)
+	resourceGroup := d.Get("resource_group_name").(string)
+
+	log.Printf("resource group %v", resourceGroup)
 	tablename := d.Get("tablename").(string)
 	databases := d.Get("database").([]interface{})
 	database := databases[0]
@@ -293,6 +299,8 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	password := config["password"].(string)
 
 	dsn := "server=" + server + ";user id=" + username + ";password=" + password + ";database=" + name
+
+	log.Printf("The dsn inside the reader is %v", dsn)
 	conn, err := sql.Open("mssql", dsn)
 
 	err = conn.Ping()
@@ -309,7 +317,12 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 
 	defer conn.Close()
 
+	log.Printf("[INFO] Connected to the database to read the table")
+
 	rows, err := conn.Query(fmt.Sprintf("sp_help %s", tablename))
+
+	log.Printf("[INFO] this is after doing sp_help on the tablename")
+
 	if err != nil {
 		return fmt.Errorf("Cannot read the of the description of the table %s in database %s", tablename, database)
 	}
@@ -333,10 +346,12 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	value["column_properties"] = columnProperties
 	value["identity_properties"] = identityProperties
 	value["constaint_properties"] = constraintProperties
-	value["index properties"] = indexProperties
+	value["index_properties"] = indexProperties
 
 	d.SetId(fmt.Sprintf("subscriptions/%s/resourceGroups/%s/providers/Microsoft.sql/servers/%s/databases/%s/tables/%s", subscriptionId, resourceGroup, server, database, tablename))
 	d.Set("table_description", value)
+
+	log.Printf("the database properties are %v", value)
 
 	defer closeRows(rows)
 
@@ -344,12 +359,11 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func getTableProperties(rows *sql.Rows) (error, []interface{}) {
+	log.Printf("Into getting the table properties")
 	var name string
 	var owner string
 	var tableType string
 	var createdDateTime string
-
-	output := make([]interface{}, 1)
 
 	for rows.Next() {
 		err := rows.Scan(&name, &owner, &tableType, &createdDateTime)
@@ -357,13 +371,14 @@ func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
+		log.Printf("The  name of the table is %s", name)
+		log.Printf("The  owner of the table is %s", owner)
+
 		tableProperties := make(map[string]string, 0)
 		tableProperties["name"] = name
 		tableProperties["owner"] = owner
 
-		output = append(output, tableProperties)
-
-		return nil, output
+		return nil, []interface{}{tableProperties}
 
 	}
 
@@ -371,6 +386,7 @@ func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 }
 
 func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
+	log.Printf("Into getting the identity properties")
 	if !rows.NextResultSet() {
 		return fmt.Errorf("Could not read the identity properties from the table %s", tableName), nil
 	}
@@ -404,6 +420,7 @@ func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface
 }
 
 func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
+	log.Printf("[INFO] Into getting the index properties")
 	if !rows.NextResultSet() {
 		return fmt.Errorf("Could not read the identity properties from the table %s", tableName), nil
 	}
@@ -435,6 +452,7 @@ func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{})
 }
 
 func getConstraintProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
+	log.Printf("Into getting the constraint properties")
 	if !rows.NextResultSet() {
 		return fmt.Errorf("Could not read the identity properties from the table %s", tableName), nil
 	}
@@ -466,6 +484,7 @@ func getConstraintProperties(rows *sql.Rows, tableName string) (error, []interfa
 }
 
 func getColumnProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
+	log.Printf("Into getting the column properties")
 	if !rows.NextResultSet() {
 		return fmt.Errorf("Could not read the column properties from the table %s", tableName), nil
 	}
