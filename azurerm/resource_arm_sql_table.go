@@ -310,25 +310,33 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	defer closeRows(spHelpRows)
 
 	if err != nil {
-		return fmt.Errorf("Cannot read the of the description of the table %s in database %s", tablename, database)
+		return fmt.Errorf("Unable to query the description of the table %s in database %s", tablename, database)
 	}
 
 	err, defaultTableProperties := getTableProperties(spHelpRows)
 
 	if err != nil {
-		return fmt.Errorf("Unable to obtain the table properties: %s", err.Error())
+		return fmt.Errorf("Unable to obtain the table properties from the table description: %s", err.Error())
 	}
 
-	err, columnProperties := getColumnProperties(spHelpRows, tablename)
-
-	if err != nil {
-		return fmt.Errorf("Unable to obtain the column properties of the table: %s", err.Error())
+	if !spHelpRows.NextResultSet() {
+		return fmt.Errorf("Could not read the column properties from the table %s", tablename)
 	}
 
-	err, identityProperties := getIdentityProperties(spHelpRows, tablename)
+	err, columnProperties := getColumnProperties(spHelpRows)
 
 	if err != nil {
-		return fmt.Errorf("Unable to obtain the indentity properties of the table: %s", err.Error())
+		return fmt.Errorf("Unable to obtain the column properties from the table description: %s", err.Error())
+	}
+
+	if !spHelpRows.NextResultSet() {
+		return fmt.Errorf("Could not read the identity properties from the table %s", tablename)
+	}
+
+	err, identityProperties := getIdentityProperties(spHelpRows)
+
+	if err != nil {
+		return fmt.Errorf("Unable to obtain the indentity properties from the table description: %s", err.Error())
 	}
 
 	spHelpIndexRows, err := conn.Query(fmt.Sprintf("sp_helpindex %s", tablename))
@@ -339,11 +347,10 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 
 	defer closeRows(spHelpIndexRows)
 
-
-	err, indexProperties := getIndexProperties(spHelpIndexRows, tablename)
+	err, indexProperties := getIndexProperties(spHelpIndexRows)
 
 	if err != nil {
-		return fmt.Errorf("Unable to obtain the index properties from the result of the query: %s", err.Error())
+		return fmt.Errorf("Unable to obtain the details from the index properties: %s", err.Error())
 	}
 
 	spHelpConstraintsRows, err := conn.Query(fmt.Sprintf("sp_helpconstraint %s", tablename))
@@ -354,10 +361,10 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("Unable to query the constraints of the table: %s", err.Error())
 	}
 
-	err, constraintProperties := getConstraintProperties(spHelpConstraintsRows, tablename)
+	err, constraintProperties := getConstraintProperties(spHelpConstraintsRows)
 
-	if err !=  nil {
-		return fmt.Errorf("Unable to obtain the constraint properties from the result of the query: %s", err.Error())
+	if err != nil {
+		return fmt.Errorf("Unable to obtain the details from tha table constraints: %s", err.Error())
 	}
 
 	value := map[string]interface{}{}
@@ -400,11 +407,7 @@ func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 
 }
 
-func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
-	if !rows.NextResultSet() {
-		return fmt.Errorf("Could not read the identity properties from the table %s", tableName), nil
-	}
-
+func getIdentityProperties(rows *sql.Rows) (error, []interface{}) {
 	var identity interface{}
 	var seed interface{}
 	var increment interface{}
@@ -427,7 +430,7 @@ func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface
 	return nil, []interface{}{identityProperties}
 }
 
-func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
+func getIndexProperties(rows *sql.Rows) (error, []interface{}) {
 	log.Printf("[INFO] Into getting the index properties")
 
 	var indexName interface{}
@@ -444,7 +447,6 @@ func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{})
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		log.Printf("THe stuff here us %v", indexProperties)
 		indexProperties["index_name"] = convertColumnValueToString(&indexName)
 		indexProperties["index_description"] = convertColumnValueToString(&indexDescription)
 		indexProperties["index_keys"] = convertColumnValueToString(&indexKeys)
@@ -454,37 +456,47 @@ func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{})
 	return nil, []interface{}{indexProperties}
 }
 
-func getConstraintProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
-	log.Printf("Into getting the constraint properties")
+func getConstraintProperties(rows *sql.Rows) (error, []interface{}) {
+	var objName interface{}
+
+	for rows.Next() {
+
+		err := rows.Scan(&objName)
+
+		if err != nil {
+			return fmt.Errorf("Cannot obtain the object name as part of scanning the constraint properties: %v", err.Error()), nil
+		}
+	}
+
 	if !rows.NextResultSet() {
-		return fmt.Errorf("Could not read the identity properties from the table %s", tableName), nil
+		return nil, nil
 	}
 
 	var constraintType interface{}
 	var constraintName interface{}
+	var deleteAction interface{}
+	var updateAction interface{}
+	var statusEnabled interface{}
+	var statusForReplication interface{}
 	var constraintKeys interface{}
 
 	constraintProperties := make(map[string]string, 0)
 
 	for rows.Next() {
-		err := rows.Scan(&constraintType, &constraintName, &constraintKeys)
+		err := rows.Scan(&constraintType, &constraintName, &deleteAction, &updateAction, &statusEnabled, &statusForReplication, &constraintKeys)
 		if err != nil {
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		constraintProperties["constraint_type"] = constraintType
-		constraintProperties["constraint_name"] = constraintName
-		constraintProperties["constraint_keys"] = constraintKeys
+		constraintProperties["constraint_type"] = convertColumnValueToString(&constraintType)
+		constraintProperties["constraint_name"] = convertColumnValueToString(&constraintName)
+		constraintProperties["constraint_keys"] = convertColumnValueToString(&constraintKeys)
 	}
 
 	return nil, []interface{}{constraintProperties}
 }
 
-func getColumnProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
-	if !rows.NextResultSet() {
-		return fmt.Errorf("Could not read the column properties from the table %s", tableName), nil
-	}
-
+func getColumnProperties(rows *sql.Rows) (error, []interface{}) {
 	cols, err := rows.Columns()
 
 	log.Printf("[INFO] The metadata columns while fetching column metadata are %v", cols)
@@ -539,6 +551,7 @@ func getColumnProperties(rows *sql.Rows, tableName string) (error, []interface{}
 	return nil, output
 }
 
+// Normalising the scattered interface{} to just a string that makes sense.
 func convertColumnValueToString(pval *interface{}) string {
 	switch v := (*pval).(type) {
 	case nil:
