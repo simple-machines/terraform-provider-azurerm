@@ -12,7 +12,7 @@ import (
 func resourceArmSqlTable() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceArmSqlTableCreate,
-		Read:   resourceArmSqlTableCreate,
+		Read:   resourceArmSqlTableRead,
 		Update: resourceArmSqlTableCreate,
 		Delete: resourceArmSqlTableCreate,
 		Importer: &schema.ResourceImporter{
@@ -71,58 +71,53 @@ func resourceArmSqlTable() *schema.Resource {
 			// https://stackoverflow.com/questions/706664/generate-sql-create-scripts-for-existing-tables-with-query
 			// http://www.c-sharpcorner.com/UploadFile/67b45a/how-to-generate-a-create-table-script-for-an-existing-table/
 			// However, let us don't prefer this as constraints with robustness is better than fragile flexibility from a user perspective, and technically.
-			"table_description" : {
-				Type: schema.TypeList,
+			"table_description": {
+				Type:     schema.TypeList,
 				MinItems: 1,
 				MaxItems: 1,
 				Computed: true,
 				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema {
-						"Created_datetime": {
-							Type: schema.TypeString,
-							Computed: true,
-						},
-
+					Schema: map[string]*schema.Schema{
 						"main_properties": {
-							Type: schema.TypeList,
+							Type:     schema.TypeList,
 							MinItems: 1,
 							MaxItems: 1,
 							Computed: true,
 							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema {
+								Schema: map[string]*schema.Schema{
 									"name": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
 										Computed: true,
 									},
 									"owner": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
 										Computed: true,
 									},
 								},
 							},
 						},
 
-						"identity_properties" : {
-							Type: schema.TypeList,
+						"identity_properties": {
+							Type:     schema.TypeList,
 							MinItems: 1,
 							MaxItems: 1,
 							Computed: true,
 							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema {
+								Schema: map[string]*schema.Schema{
 									"identity": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
 										Computed: true,
 									},
 									"seed": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
 										Computed: true,
 									},
 									"increment": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
 										Computed: true,
 									},
-									"Not For Replication": {
-										Type: schema.TypeString,
+									"not_for_replication": {
+										Type:     schema.TypeString,
 										Computed: true,
 									},
 								},
@@ -130,22 +125,22 @@ func resourceArmSqlTable() *schema.Resource {
 						},
 
 						"index_properties": {
-							Type: schema.TypeList,
+							Type:     schema.TypeList,
 							MinItems: 1,
 							MaxItems: 1,
 							Computed: true,
 							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema {
+								Schema: map[string]*schema.Schema{
 									"index_name": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
 										Computed: true,
 									},
 									"index_description": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
 										Computed: true,
 									},
 									"index_keys": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
 										Computed: true,
 									},
 								},
@@ -153,49 +148,56 @@ func resourceArmSqlTable() *schema.Resource {
 						},
 
 						"constraint_properties": {
-							Type: schema.TypeList,
+							Type:     schema.TypeList,
 							MinItems: 1,
 							MaxItems: 1,
 							Computed: true,
-							Elem: &schema.Resource {
-								Schema: map[string]*schema.Schema {
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
 									"constraint_type": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
 										Computed: true,
 									},
 									"constraint_name": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
+										Optional: true,
 										Computed: true,
 									},
 									"constraint_keys": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
 										Computed: true,
 									},
 								},
 							},
 						},
 
-						"column_properties" : {
-							Type: schema.TypeList,
+						"column_properties": {
+							Type:     schema.TypeList,
 							MinItems: 1,
+							Computed: true,
 							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema {
+								Schema: map[string]*schema.Schema{
 									"name": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
+										Computed: true,
 									},
 									"type": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
+										Computed: true,
 									},
 
 									"size": {
-										Type: schema.TypeInt,
+										Type:     schema.TypeInt,
+										Computed: true,
 									},
-									"null?": {
+									"null": {
 										// NULL or NOT NULL
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
+										Computed: true,
 									},
 									"collation": {
-										Type: schema.TypeString,
+										Type:     schema.TypeString,
+										Computed: true,
 									},
 								},
 							},
@@ -208,6 +210,7 @@ func resourceArmSqlTable() *schema.Resource {
 }
 
 func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
+	log.Printf("[INFO] Into the table creation logic")
 	columns := d.Get("columns").(map[string]interface{})
 	tablename := d.Get("tablename").(string)
 	databases := d.Get("database").([]interface{})
@@ -220,6 +223,7 @@ func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 	username := config["username"].(string)
 	password := config["password"].(string)
 	dsn := "server=" + server + ";user id=" + username + ";password=" + password + ";database=" + name
+	log.Printf("[INFO] The connection string is %s", dsn)
 	conn, err := sql.Open("mssql", dsn)
 
 	if err != nil {
@@ -236,22 +240,39 @@ func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 
 	querySlices := make([]string, 0, len(columns))
 
+	log.Printf("[INFO] Building the query string using the slices %v", querySlices)
+
 	for key, v := range columns {
 		value := v.(string)
 		querySlices = append(querySlices, strings.Join([]string{key, value}, " "))
 	}
 
-	query := fmt.Sprintf("CREATE TABLE %s %s", tablename, strings.Join(querySlices, ","))
+	query := fmt.Sprintf("CREATE TABLE %s ( %s );", tablename, strings.Join(querySlices, ","))
+
+	log.Printf("[INFO] The query built is %s", query)
 
 	rows, err := conn.Query(query)
 
-	defer rows.Close()
+	defer closeRows(rows)
+
+	log.Printf("%v", rows)
 
 	if err != nil {
 		return fmt.Errorf("Cannot run the query for some reason %v ", err.Error())
 	}
 
 	return nil
+}
+
+// Go made me do this...
+func closeRows(r *sql.Rows) error {
+	var err error
+
+	if r != nil {
+		err = r.Close()
+	}
+
+	return err
 }
 
 func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
@@ -293,11 +314,9 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("Cannot read the of the description of the table %s in database %s", tablename, database)
 	}
 
-
-
-	_, defaultTableProperties :=  getTableProperties(rows)
-	_, columnProperties       := getColumnProperties(rows, tablename)
-	_, identityProperties     := getIdentityProperties(rows, tablename)
+	_, defaultTableProperties := getTableProperties(rows)
+	_, columnProperties := getColumnProperties(rows, tablename)
+	_, identityProperties := getIdentityProperties(rows, tablename)
 
 	// Skip this few result set for the time being
 	rows.NextResultSet()
@@ -305,9 +324,8 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	// Skip this result set for the time being
 	rows.NextResultSet()
 
-	_, indexProperties      := getIndexProperties(rows, tablename)
+	_, indexProperties := getIndexProperties(rows, tablename)
 	_, constraintProperties := getConstraintProperties(rows, tablename)
-
 
 	value := map[string]interface{}{}
 
@@ -320,13 +338,12 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	d.SetId(fmt.Sprintf("subscriptions/%s/resourceGroups/%s/providers/Microsoft.sql/servers/%s/databases/%s/tables/%s", subscriptionId, resourceGroup, server, database, tablename))
 	d.Set("table_description", value)
 
-	defer rows.Close()
+	defer closeRows(rows)
 
 	return nil
 }
 
-
-func getTableProperties(rows *sql.Rows)(error, []interface{}) {
+func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 	var name string
 	var owner string
 	var tableType string
@@ -334,13 +351,13 @@ func getTableProperties(rows *sql.Rows)(error, []interface{}) {
 
 	output := make([]interface{}, 1)
 
-	for (rows.Next()) {
+	for rows.Next() {
 		err := rows.Scan(&name, &owner, &tableType, &createdDateTime)
 		if err != nil {
-			return fmt.Errorf("Cannot scan for table details %v", err.Error())
+			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		tableProperties := make([]map[string]string, 0)
+		tableProperties := make(map[string]string, 0)
 		tableProperties["name"] = name
 		tableProperties["owner"] = owner
 
@@ -350,11 +367,11 @@ func getTableProperties(rows *sql.Rows)(error, []interface{}) {
 
 	}
 
-	return nil
+	return nil, nil
 }
 
 func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
-	if ! rows.NextResultSet() {
+	if !rows.NextResultSet() {
 		return fmt.Errorf("Could not read the identity properties from the table %s", tableName), nil
 	}
 
@@ -363,20 +380,19 @@ func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface
 	var increment string
 	var notForReplication string
 
-
 	output := make([]interface{}, 1)
 
-	for (rows.Next()) {
+	for rows.Next() {
 		err := rows.Scan(&identity, &seed, &increment, &notForReplication)
 		if err != nil {
-			return fmt.Errorf("Cannot scan for table details %v", err.Error())
+			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		identityProperties := make([]map[string]string, 0)
+		identityProperties := make(map[string]string, 0)
 		identityProperties["identity"] = identity
 		identityProperties["seed"] = seed
 		identityProperties["increment"] = increment
-		identityProperties["Not For Replication"] = notForReplication
+		identityProperties["not_for_replication"] = notForReplication
 
 		output = append(output, identityProperties)
 
@@ -384,11 +400,11 @@ func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface
 
 	}
 
-	return nil
+	return nil, nil
 }
 
 func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
-	if ! rows.NextResultSet() {
+	if !rows.NextResultSet() {
 		return fmt.Errorf("Could not read the identity properties from the table %s", tableName), nil
 	}
 
@@ -398,13 +414,13 @@ func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{})
 
 	output := make([]interface{}, 1)
 
-	for (rows.Next()) {
+	for rows.Next() {
 		err := rows.Scan(&indexName, &indexDescription, &indexKeys)
 		if err != nil {
-			return fmt.Errorf("Cannot scan for table details %v", err.Error())
+			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		indexProperties := make([]map[string]string, 0)
+		indexProperties := make(map[string]string, 0)
 		indexProperties["index_name"] = indexName
 		indexProperties["index_description"] = indexDescription
 		indexProperties["index_keys"] = indexKeys
@@ -415,7 +431,7 @@ func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{})
 
 	}
 
-	return nil
+	return nil, nil
 }
 
 func getConstraintProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
@@ -429,13 +445,13 @@ func getConstraintProperties(rows *sql.Rows, tableName string) (error, []interfa
 
 	output := make([]interface{}, 1)
 
-	for (rows.Next()) {
+	for rows.Next() {
 		err := rows.Scan(&constraintType, &constraintName, &constraintKeys)
 		if err != nil {
-			return fmt.Errorf("Cannot scan for table details %v", err.Error())
+			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		constraintProperties := make([]map[string]string, 0)
+		constraintProperties := make(map[string]string, 0)
 		constraintProperties["constraint_type"] = constraintType
 		constraintProperties["constraint_name"] = constraintName
 		constraintProperties["constraint_keys"] = constraintKeys
@@ -446,9 +462,8 @@ func getConstraintProperties(rows *sql.Rows, tableName string) (error, []interfa
 
 	}
 
-	return nil
+	return nil, nil
 }
-
 
 func getColumnProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
 	if !rows.NextResultSet() {
@@ -459,39 +474,43 @@ func getColumnProperties(rows *sql.Rows, tableName string) (error, []interface{}
 
 	log.Printf("[INFO] The metadata columns while fetching column metadata are %v", cols)
 
-	if (err != nil || cols ==  nil) {
+	if err != nil || cols == nil {
 		return fmt.Errorf("Could not retrieve the metadata columns of the data %s", cols), nil
 	}
 
 	vals := make([]interface{}, len(cols))
 
-	for i := 0;  i < len(cols); i++ {
-		vals[i]  = new(interface{})
+	for i := 0; i < len(cols); i++ {
+		vals[i] = new(interface{})
 	}
 
 	output := make([]interface{}, 1)
 
-	for (rows.Next()) {
+	for rows.Next() {
 		err := rows.Scan(vals...)
 		if err != nil {
-			return fmt.Errorf("Cannot scan for table details %v", err.Error())
+			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		columnProperties := make([]map[string]string, 0)
+		columnProperties := make(map[string]string, 0)
 		// A safer approach when compared to the above approach.
 		for i := 0; i < len(vals); i++ {
 			switch cols[i] {
-			case "column name": columnProperties["name"] = vals[i]
-			case "type": columnProperties["type"] = vals[i]
-			case "size": columnProperties["size"] = vals[i]
+			case "column name":
+				columnProperties["name"] = vals[i].(string)
+			case "type":
+				columnProperties["type"] = vals[i].(string)
+			case "size":
+				columnProperties["size"] = vals[i].(string)
 			case "nullable":
-				if (vals[i] == "no") {
-					columnProperties["null?"] == "NULL"
+				if vals[i] == "no" {
+					columnProperties["null"] = "NULL"
 				} else {
-					columnProperties["null?"] == "NOT NULL"
+					columnProperties["null"] = "NOT NULL"
 				}
 
-			case "collation": columnProperties["collation"] == vals[i]
+			case "collation":
+				columnProperties["collation"] = vals[i].(string)
 			default:
 				continue
 
