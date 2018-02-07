@@ -300,13 +300,7 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	err = conn.Ping()
 
 	if err != nil {
-		return fmt.Errorf("Cannot connect: %v ", err.Error())
-	}
-
-	err = conn.Ping()
-
-	if err != nil {
-		return fmt.Errorf("Cannot connect: %v ", err.Error())
+		return fmt.Errorf("Unable to connect to the server/database: %v ", err.Error())
 	}
 
 	defer conn.Close()
@@ -322,20 +316,49 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	err, defaultTableProperties := getTableProperties(spHelpRows)
 
 	if err != nil {
-		return fmt.Errorf("Unable to obtain the table ")
+		return fmt.Errorf("Unable to obtain the table properties: %s", err.Error())
 	}
-	_, columnProperties := getColumnProperties(spHelpRows, tablename)
-	_, identityProperties := getIdentityProperties(spHelpRows, tablename)
+
+	err, columnProperties := getColumnProperties(spHelpRows, tablename)
+
+	if err != nil {
+		return fmt.Errorf("Unable to obtain the column properties of the table: %s", err.Error())
+	}
+
+	err, identityProperties := getIdentityProperties(spHelpRows, tablename)
+
+	if err != nil {
+		return fmt.Errorf("Unable to obtain the indentity properties of the table: %s", err.Error())
+	}
 
 	spHelpIndexRows, err := conn.Query(fmt.Sprintf("sp_helpindex %s", tablename))
 
+	if err != nil {
+		return fmt.Errorf("Unable to query the index properties of the table: %s", err.Error())
+	}
+
 	defer closeRows(spHelpIndexRows)
 
+
+	err, indexProperties := getIndexProperties(spHelpIndexRows, tablename)
+
 	if err != nil {
-		return fmt.Errorf("Unable to obtain index details of the table %s", err.Error())
+		return fmt.Errorf("Unable to obtain the index properties from the result of the query: %s", err.Error())
 	}
-	_, indexProperties := getIndexProperties(spHelpIndexRows, tablename)
-	_, constraintProperties := getConstraintProperties(spHelpIndexRows, tablename)
+
+	spHelpConstraintsRows, err := conn.Query(fmt.Sprintf("sp_helpconstraint %s", tablename))
+
+	defer closeRows(spHelpConstraintsRows)
+
+	if err != nil {
+		return fmt.Errorf("Unable to query the constraints of the table: %s", err.Error())
+	}
+
+	err, constraintProperties := getConstraintProperties(spHelpConstraintsRows, tablename)
+
+	if err !=  nil {
+		return fmt.Errorf("Unable to obtain the constraint properties from the result of the query: %s", err.Error())
+	}
 
 	value := map[string]interface{}{}
 
@@ -355,10 +378,10 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 
 func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 	log.Printf("Into getting the table properties")
-	var name string
-	var owner string
-	var tableType string
-	var createdDateTime string
+	var name interface{}
+	var owner interface{}
+	var tableType interface{}
+	var createdDateTime interface{}
 
 	tableProperties := make(map[string]string, 0)
 
@@ -368,8 +391,8 @@ func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		tableProperties["name"] = name
-		tableProperties["owner"] = owner
+		tableProperties["name"] = convertColumnValueToString(&name)
+		tableProperties["owner"] = convertColumnValueToString(&owner)
 
 	}
 
