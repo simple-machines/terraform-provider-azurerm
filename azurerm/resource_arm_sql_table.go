@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 	"log"
 	"strings"
+	"time"
 )
 
 func resourceArmSqlTable() *schema.Resource {
@@ -365,6 +366,8 @@ func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 	var tableType string
 	var createdDateTime string
 
+	tableProperties := make(map[string]string, 0)
+
 	for rows.Next() {
 		err := rows.Scan(&name, &owner, &tableType, &createdDateTime)
 		if err != nil {
@@ -374,20 +377,19 @@ func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 		log.Printf("The  name of the table is %s", name)
 		log.Printf("The  owner of the table is %s", owner)
 
-		tableProperties := make(map[string]string, 0)
 		tableProperties["name"] = name
 		tableProperties["owner"] = owner
 
-		return nil, []interface{}{tableProperties}
-
 	}
 
-	return nil, nil
+	return nil, []interface{}{tableProperties}
+
 }
 
 func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
 	log.Printf("Into getting the identity properties")
 	if !rows.NextResultSet() {
+		log.Printf("M i here inside the identity properties")
 		return fmt.Errorf("Could not read the identity properties from the table %s", tableName), nil
 	}
 
@@ -396,7 +398,7 @@ func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface
 	var increment string
 	var notForReplication string
 
-	output := make([]interface{}, 1)
+	identityProperties := make(map[string]string, 0)
 
 	for rows.Next() {
 		err := rows.Scan(&identity, &seed, &increment, &notForReplication)
@@ -404,19 +406,13 @@ func getIdentityProperties(rows *sql.Rows, tableName string) (error, []interface
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		identityProperties := make(map[string]string, 0)
 		identityProperties["identity"] = identity
 		identityProperties["seed"] = seed
 		identityProperties["increment"] = increment
 		identityProperties["not_for_replication"] = notForReplication
-
-		output = append(output, identityProperties)
-
-		return nil, output
-
 	}
 
-	return nil, nil
+	return nil, []interface{}{identityProperties}
 }
 
 func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
@@ -429,7 +425,7 @@ func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{})
 	var indexDescription string
 	var indexKeys string
 
-	output := make([]interface{}, 1)
+	indexProperties := make(map[string]string, 0)
 
 	for rows.Next() {
 		err := rows.Scan(&indexName, &indexDescription, &indexKeys)
@@ -437,18 +433,13 @@ func getIndexProperties(rows *sql.Rows, tableName string) (error, []interface{})
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		indexProperties := make(map[string]string, 0)
 		indexProperties["index_name"] = indexName
 		indexProperties["index_description"] = indexDescription
 		indexProperties["index_keys"] = indexKeys
 
-		output = append(output, indexProperties)
-
-		return nil, output
-
 	}
 
-	return nil, nil
+	return nil, []interface{}{indexProperties}
 }
 
 func getConstraintProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
@@ -461,7 +452,7 @@ func getConstraintProperties(rows *sql.Rows, tableName string) (error, []interfa
 	var constraintName string
 	var constraintKeys string
 
-	output := make([]interface{}, 1)
+	constraintProperties := make(map[string]string, 0)
 
 	for rows.Next() {
 		err := rows.Scan(&constraintType, &constraintName, &constraintKeys)
@@ -469,22 +460,15 @@ func getConstraintProperties(rows *sql.Rows, tableName string) (error, []interfa
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		constraintProperties := make(map[string]string, 0)
 		constraintProperties["constraint_type"] = constraintType
 		constraintProperties["constraint_name"] = constraintName
 		constraintProperties["constraint_keys"] = constraintKeys
-
-		output = append(output, constraintProperties)
-
-		return nil, output
-
 	}
 
-	return nil, nil
+	return nil, []interface{}{constraintProperties}
 }
 
 func getColumnProperties(rows *sql.Rows, tableName string) (error, []interface{}) {
-	log.Printf("Into getting the column properties")
 	if !rows.NextResultSet() {
 		return fmt.Errorf("Could not read the column properties from the table %s", tableName), nil
 	}
@@ -503,7 +487,7 @@ func getColumnProperties(rows *sql.Rows, tableName string) (error, []interface{}
 		vals[i] = new(interface{})
 	}
 
-	output := make([]interface{}, 1)
+	output := make([]interface{}, 0)
 
 	for rows.Next() {
 		err := rows.Scan(vals...)
@@ -512,24 +496,24 @@ func getColumnProperties(rows *sql.Rows, tableName string) (error, []interface{}
 		}
 
 		columnProperties := make(map[string]string, 0)
-		// A safer approach when compared to the above approach.
+
 		for i := 0; i < len(vals); i++ {
 			switch cols[i] {
-			case "column name":
-				columnProperties["name"] = vals[i].(string)
-			case "type":
-				columnProperties["type"] = vals[i].(string)
-			case "size":
-				columnProperties["size"] = vals[i].(string)
-			case "nullable":
+			case "Column_name":
+				columnProperties["name"] = convertColumnValueToString(vals[i].(*interface{}))
+			case "Type":
+				columnProperties["type"] = convertColumnValueToString(vals[i].(*interface{}))
+			case "Length":
+				columnProperties["size"] = convertColumnValueToString(vals[i].(*interface{}))
+			case "Nullable":
 				if vals[i] == "no" {
 					columnProperties["null"] = "NULL"
 				} else {
 					columnProperties["null"] = "NOT NULL"
 				}
 
-			case "collation":
-				columnProperties["collation"] = vals[i].(string)
+			case "Collation":
+				columnProperties["collation"] = convertColumnValueToString(vals[i].(*interface{}))
 			default:
 				continue
 
@@ -539,5 +523,25 @@ func getColumnProperties(rows *sql.Rows, tableName string) (error, []interface{}
 		output = append(output, columnProperties)
 	}
 
+	log.Printf("the output is %s", output)
 	return nil, output
+}
+
+func convertColumnValueToString(pval *interface{}) string {
+	switch v := (*pval).(type) {
+	case nil:
+		return "NULL"
+	case bool:
+		if v {
+			return "1"
+		} else {
+			return "0"
+		}
+	case []byte:
+		return string(v)
+	case time.Time:
+		return v.Format("2006-01-02 15:04:05.999")
+	default:
+		return fmt.Sprint(v)
+	}
 }
