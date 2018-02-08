@@ -170,6 +170,7 @@ func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceArmSqlUpdate(d *schema.ResourceData, meta interface{}) error {
+	log.Printf("m i fucking here pls? damn")
 	tablename := d.Get("tablename").(string)
 	databases := d.Get("database").([]interface{})
 	config := databases[0].(map[string]interface{})
@@ -194,29 +195,30 @@ func resourceArmSqlUpdate(d *schema.ResourceData, meta interface{}) error {
 
 	defer conn.Close()
 
-	bools := d.HasChange("columns")
-	log.Printf("[INFO] Change detected in columns: %v", bools)
-
 	if d.HasChange("columns") {
 		prev, newValue := d.GetChange("columns")
 		log.Printf("The new and old values are: %v, %v", prev, newValue)
 
-		for prevKey := range prev.(map[string]interface{}) {
-			rows, err := conn.Query(fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s %s", tablename, prevKey, newValue.(map[string]interface{})[prevKey].(string)))
+		for newKey, newValue := range newValue.(map[string]interface{}) {
+			oldValue := prev.(map[string]interface{})[newKey]
 
-			if err != nil {
-				return fmt.Errorf("Cannot alter the column: %v", err.Error())
+			if oldValue == nil {
+				rows, err := conn.Query(fmt.Sprintf("ALTER TABLE %s ADD %s %s", tablename, newKey, newValue.(string)))
+				if err != nil {
+					return fmt.Errorf("Cannot add a new column into the table: %v", err.Error())
+				}
+				closeRows(rows)
+
+			} else {
+				rows, err := conn.Query(fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s %s", tablename, newKey, newValue.(string)))
+				if err != nil {
+					return fmt.Errorf("Cannot alter an existing column in the table: %v", err.Error())
+				}
+				closeRows(rows)
 			}
-
-			closeRows(rows)
 		}
 
 	}
-	diff1, diff2 := d.GetChange("tablename")
-	somediff1, somediff2 := d.GetChange("columns")
-
-	log.Printf("the first diff is %v %v", diff1, diff2)
-	log.Printf("the second diff is %v %v", somediff1, somediff2)
 
 	return resourceArmSqlTableRead(d, meta)
 
@@ -543,8 +545,16 @@ func convertColumnValueToString(pval *interface{}) string {
 
 func (c columnToSqlQuery) appendColumnProperties(columnProperties []columnProperty) columnToSqlQuery {
 	for _, m := range columnProperties {
+		columnType := func() string {
+			if m.columnType == "varchar" || m.columnType == "nvarchar" || m.columnType == "char" {
+				return fmt.Sprintf("%s(%s)", m.columnType, m.size)
+			} else {
+				return m.columnType
+			}
+		}()
+
 		if m.collation != "NULL" {
-			c[m.name] = fmt.Sprintf("%s collate %s %s", m.columnType, m.collation, m.null)
+			c[m.name] = fmt.Sprintf("%s collate %s %s", columnType, m.collation, m.null)
 		} else {
 			c[m.name] = fmt.Sprintf("%s %s", m.columnType, m.null)
 		}
