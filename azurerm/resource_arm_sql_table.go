@@ -34,16 +34,14 @@ type constraintProperty struct {
 
 type constraintProperties []constraintProperty
 
-// TODO; add computed columns too
-// SELECT * FROM sys.computed_columns WHERE object_id = OBJECT_ID('tablename')
-
+// columnToSqlQuery is a receiver to custom functions such as append columnProperties, identityProperties etc.
 type columnToSqlQuery map[string]string
 
 func resourceArmSqlTable() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceArmSqlTableCreate,
 		Read:   resourceArmSqlTableRead,
-		Update: resourceArmSqlTableCreate,
+		Update: resourceArmSqlUpdate,
 		Delete: resourceArmSqlDelete,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
@@ -169,6 +167,59 @@ func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	return resourceArmSqlTableRead(d, meta)
+}
+
+func resourceArmSqlUpdate(d *schema.ResourceData, meta interface{}) error {
+	tablename := d.Get("tablename").(string)
+	databases := d.Get("database").([]interface{})
+	config := databases[0].(map[string]interface{})
+	name := config["name"].(string)
+	server := config["server"].(string)
+	username := config["username"].(string)
+	password := config["password"].(string)
+	dsn := "server=" + server + ";user id=" + username + ";password=" + password + ";database=" + name
+
+	conn, err := sql.Open("mssql", dsn)
+
+	if err != nil {
+		return fmt.Errorf("Cannot connect to the database: %v", err.Error())
+	}
+
+	err = conn.Ping()
+
+	if err != nil {
+		return fmt.Errorf("Cannot connect to the database: %v", err.Error())
+
+	}
+
+	defer conn.Close()
+
+	bools := d.HasChange("columns")
+	log.Printf("[INFO] Change detected in columns: %v", bools)
+
+	if d.HasChange("columns") {
+		prev, newValue := d.GetChange("columns")
+		log.Printf("The new and old values are: %v, %v", prev, newValue)
+
+		for prevKey := range prev.(map[string]interface{}) {
+			rows, err := conn.Query(fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s %s", tablename, prevKey, newValue.(map[string]interface{})[prevKey].(string)))
+
+			if err != nil {
+				return fmt.Errorf("Cannot alter the column: %v", err.Error())
+			}
+
+			closeRows(rows)
+		}
+
+	}
+	diff1, diff2 := d.GetChange("tablename")
+	somediff1, somediff2 := d.GetChange("columns")
+
+	log.Printf("the first diff is %v %v", diff1, diff2)
+	log.Printf("the second diff is %v %v", somediff1, somediff2)
+
+	return resourceArmSqlTableRead(d, meta)
+
 }
 
 func resourceArmSqlDelete(d *schema.ResourceData, meta interface{}) error {
@@ -525,7 +576,7 @@ func (c constraintProperties) toConstraintMap() map[string]string {
 			constraintsMap[constraint.constraintName] = fmt.Sprintf("primary key clustered (%s)", constraint.constraintKeys)
 		case "PRIMARY KEY (non-clustered)":
 			constraintsMap[constraint.constraintName] = fmt.Sprintf("primary key nonclustered (%s)", constraint.constraintKeys)
-		case "UNIQUE (non-clustered":
+		case "UNIQUE (non-clustered)":
 			constraintsMap[constraint.constraintName] = fmt.Sprintf("unique nonclustered (%s)", constraint.constraintKeys)
 		case "UNIQUE (clustered)":
 			constraintsMap[constraint.constraintName] = fmt.Sprintf("unique clustered (%s)", constraint.constraintKeys)
