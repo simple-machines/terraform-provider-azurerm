@@ -10,6 +10,35 @@ import (
 	"time"
 )
 
+type identityProperty struct {
+	identity          string
+	seed              string
+	increment         string
+	notForReplication string
+}
+
+type columnProperty struct {
+	name       string
+	columnType string
+	size       string
+	null       string
+	collation  string
+}
+
+type constraintProperty struct {
+	constraintType string
+	constraintName string
+	// We don't care if its a list, Let the user pass comma separated string if there are multiple values
+	constraintKeys string
+}
+
+type constraintProperties []constraintProperty
+
+// TODO; add computed columns too
+// SELECT * FROM sys.computed_columns WHERE object_id = OBJECT_ID('tablename')
+
+type columnToSqlQuery map[string]string
+
 func resourceArmSqlTable() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceArmSqlTableCreate,
@@ -52,6 +81,12 @@ func resourceArmSqlTable() *schema.Resource {
 				},
 			},
 
+			"constraint": {
+				Type:        schema.TypeMap,
+				Description: "Define the constraint name and the value as a sql string. Ex: constraint(). Currently only primary keys is supported",
+				Optional:    true,
+			},
+
 			"resource_group_name": resourceGroupNameSchema(),
 
 			"tablename": {
@@ -60,151 +95,10 @@ func resourceArmSqlTable() *schema.Resource {
 				ForceNew: true,
 			},
 
-			// This will go off, as we are moving away from string comparison.
 			"columns": {
 				Type:        schema.TypeMap,
 				Description: "Columns in a table with its corresponding sql statements",
 				Required:    true,
-			},
-
-			// Another possible solution is to run the script and get the create table query.
-			// The advantage with it would be more flexible queries.
-			// https://stackoverflow.com/questions/706664/generate-sql-create-scripts-for-existing-tables-with-query
-			// http://www.c-sharpcorner.com/UploadFile/67b45a/how-to-generate-a-create-table-script-for-an-existing-table/
-			// However, let us don't prefer this as constraints with robustness is better than fragile flexibility from a user perspective, and technically.
-			"table_description": {
-				Type:     schema.TypeList,
-				MinItems: 1,
-				MaxItems: 1,
-				Computed: true,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"main_properties": {
-							Type:     schema.TypeList,
-							MinItems: 1,
-							MaxItems: 1,
-							Computed: true,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"name": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-									"owner": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-								},
-							},
-						},
-
-						"identity_properties": {
-							Type:     schema.TypeList,
-							MinItems: 1,
-							MaxItems: 1,
-							Computed: true,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"identity": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-									"seed": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-									"increment": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-									"not_for_replication": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-								},
-							},
-						},
-
-						"index_properties": {
-							Type:     schema.TypeList,
-							MinItems: 1,
-							MaxItems: 1,
-							Computed: true,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"index_name": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-									"index_description": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-									"index_keys": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-								},
-							},
-						},
-
-						"constraint_properties": {
-							Type:     schema.TypeList,
-							MinItems: 1,
-							MaxItems: 1,
-							Computed: true,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"constraint_type": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-									"constraint_name": {
-										Type:     schema.TypeString,
-										Optional: true,
-										Computed: true,
-									},
-									"constraint_keys": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-								},
-							},
-						},
-
-						"column_properties": {
-							Type:     schema.TypeList,
-							MinItems: 1,
-							Computed: true,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"name": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-									"type": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-
-									"size": {
-										Type:     schema.TypeInt,
-										Computed: true,
-									},
-									"null": {
-										// NULL or NOT NULL
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-									"collation": {
-										Type:     schema.TypeString,
-										Computed: true,
-									},
-								},
-							},
-						},
-					},
-				},
 			},
 		},
 	}
@@ -213,6 +107,7 @@ func resourceArmSqlTable() *schema.Resource {
 func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[INFO] Into the table creation logic")
 	columns := d.Get("columns").(map[string]interface{})
+	constraints := d.Get("constraints").(map[string]interface{})
 	tablename := d.Get("tablename").(string)
 	databases := d.Get("database").([]interface{})
 	config := databases[0].(map[string]interface{})
@@ -248,7 +143,20 @@ func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 		querySlices = append(querySlices, strings.Join([]string{key, value}, " "))
 	}
 
-	query := fmt.Sprintf("CREATE TABLE %s ( %s );", tablename, strings.Join(querySlices, ","))
+	constraintSlices := make([]string, 0, len(constraints))
+
+	for key, v := range constraints {
+		value := v.(string)
+		constraintSlices = append(constraintSlices, fmt.Sprintf("CONSTRAINT %s %s", key, value))
+	}
+
+	columnString := strings.Join(querySlices, ", ")
+
+	if len(constraintSlices) > 0 {
+		columnString += strings.Join(constraintSlices, ", ")
+	}
+
+	query := fmt.Sprintf("CREATE TABLE %s ( %s );", tablename, columnString)
 
 	log.Printf("[INFO] The query built is %s", query)
 
@@ -310,7 +218,8 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	defer closeRows(spHelpRows)
 
 	if err != nil {
-		return fmt.Errorf("Unable to query the description of the table %s in database %s", tablename, database)
+		// If user creates through tf, and deletes manually. The fallback is to clear the tfstate as it is invalid now.
+		return fmt.Errorf("Unable to query the description of the table %s: %v", tablename, err.Error())
 	}
 
 	err, defaultTableProperties := getTableProperties(spHelpRows)
@@ -339,16 +248,6 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("Unable to obtain the indentity properties from the table description: %s", err.Error())
 	}
 
-	spHelpIndexRows, err := conn.Query(fmt.Sprintf("sp_helpindex %s", tablename))
-
-	if err != nil {
-		return fmt.Errorf("Unable to query the index properties of the table: %s", err.Error())
-	}
-
-	defer closeRows(spHelpIndexRows)
-
-	err, indexProperties := getIndexProperties(spHelpIndexRows)
-
 	if err != nil {
 		return fmt.Errorf("Unable to obtain the details from the index properties: %s", err.Error())
 	}
@@ -367,18 +266,23 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 		return fmt.Errorf("Unable to obtain the details from tha table constraints: %s", err.Error())
 	}
 
-	value := map[string]interface{}{}
-
-	value["main_properties"] = defaultTableProperties
-	value["column_properties"] = columnProperties
-	value["identity_properties"] = identityProperties
-	value["constaint_properties"] = constraintProperties
-	value["index_properties"] = indexProperties
-
 	d.SetId(fmt.Sprintf("subscriptions/%s/resourceGroups/%s/providers/Microsoft.sql/servers/%s/databases/%s/tables/%s", subscriptionId, resourceGroup, server, database, tablename))
-	d.Set("table_description", value)
 
-	log.Printf("the database properties are %v", value)
+	output := make(map[string]string, 0)
+
+	cQuery := columnToSqlQuery(output)
+
+	cQuery.appendColumnProperties(columnProperties)
+	cQuery.appendIdentityProperties(identityProperties)
+
+	log.Printf("the constraint properties are %v", constraintProperties.toConstraintMap())
+
+	d.Set("columns", cQuery)
+	d.Set("constraints", constraintProperties.toConstraintMap())
+
+	log.Printf("the default table properties is %v", defaultTableProperties)
+	log.Printf("the column map is %v", d.Get("columns"))
+	log.Printf("the constraint map is %v", d.Get("constraints"))
 
 	return nil
 }
@@ -407,56 +311,36 @@ func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 
 }
 
-func getIdentityProperties(rows *sql.Rows) (error, []interface{}) {
+func getIdentityProperties(rows *sql.Rows) (error, identityProperty) {
 	var identity interface{}
 	var seed interface{}
 	var increment interface{}
 	var notForReplication interface{}
 
-	identityProperties := make(map[string]string, 0)
-
 	for rows.Next() {
 		err := rows.Scan(&identity, &seed, &increment, &notForReplication)
+
 		if err != nil {
-			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
+			return fmt.Errorf("Cannot scan for identity details of the table %v. This might be because of the conflicts in SQL version", err.Error()), identityProperty{}
 		}
 
-		identityProperties["identity"] = convertColumnValueToString(&identity)
-		identityProperties["seed"] = convertColumnValueToString(&seed)
-		identityProperties["increment"] = convertColumnValueToString(&increment)
-		identityProperties["not_for_replication"] = convertColumnValueToString(&notForReplication)
+		// Better not to have multiple identity properties
+		break
 	}
 
-	return nil, []interface{}{identityProperties}
-}
-
-func getIndexProperties(rows *sql.Rows) (error, []interface{}) {
-	log.Printf("[INFO] Into getting the index properties")
-
-	var indexName interface{}
-	var indexDescription interface{}
-	var indexKeys interface{}
-
-	indexProperties := make(map[string]string, 0)
-
-	log.Printf("More into index propperties")
-	for rows.Next() {
-		err := rows.Scan(&indexName, &indexDescription, &indexKeys)
-		if err != nil {
-			log.Printf("the erros is %v", err)
-			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
-		}
-
-		indexProperties["index_name"] = convertColumnValueToString(&indexName)
-		indexProperties["index_description"] = convertColumnValueToString(&indexDescription)
-		indexProperties["index_keys"] = convertColumnValueToString(&indexKeys)
-
+	id := identityProperty{
+		// Further abstraction on setting struct fields requires reflection.
+		// Hence, lets be versbose and atomic in updating struct fields.
+		convertColumnValueToString(&identity),
+		convertColumnValueToString(&seed),
+		convertColumnValueToString(&increment),
+		convertColumnValueToString(&notForReplication),
 	}
 
-	return nil, []interface{}{indexProperties}
+	return nil, id
 }
 
-func getConstraintProperties(rows *sql.Rows) (error, []interface{}) {
+func getConstraintProperties(rows *sql.Rows) (error, constraintProperties) {
 	var objName interface{}
 
 	for rows.Next() {
@@ -480,7 +364,8 @@ func getConstraintProperties(rows *sql.Rows) (error, []interface{}) {
 	var statusForReplication interface{}
 	var constraintKeys interface{}
 
-	constraintProperties := make(map[string]string, 0)
+	output := make([]constraintProperty, 0)
+	//constraintProperties := make(map[string]string, 0)
 
 	for rows.Next() {
 		err := rows.Scan(&constraintType, &constraintName, &deleteAction, &updateAction, &statusEnabled, &statusForReplication, &constraintKeys)
@@ -488,15 +373,19 @@ func getConstraintProperties(rows *sql.Rows) (error, []interface{}) {
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		constraintProperties["constraint_type"] = convertColumnValueToString(&constraintType)
-		constraintProperties["constraint_name"] = convertColumnValueToString(&constraintName)
-		constraintProperties["constraint_keys"] = convertColumnValueToString(&constraintKeys)
+		constraintProperties := constraintProperty{
+			convertColumnValueToString(&constraintType),
+			convertColumnValueToString(&constraintName),
+			convertColumnValueToString(&constraintKeys),
+		}
+
+		output = append(output, constraintProperties)
 	}
 
-	return nil, []interface{}{constraintProperties}
+	return nil, constraintProperties(output)
 }
 
-func getColumnProperties(rows *sql.Rows) (error, []interface{}) {
+func getColumnProperties(rows *sql.Rows) (error, []columnProperty) {
 	cols, err := rows.Columns()
 
 	log.Printf("[INFO] The metadata columns while fetching column metadata are %v", cols)
@@ -505,43 +394,41 @@ func getColumnProperties(rows *sql.Rows) (error, []interface{}) {
 		return fmt.Errorf("Could not retrieve the metadata columns of the data %s", cols), nil
 	}
 
-	vals := make([]interface{}, len(cols))
+	var columnName interface{}
+	var columnType interface{}
+	var computed interface{}
+	var length interface{}
+	var prec interface{}
+	var scale interface{}
+	var nullable interface{}
+	var trimTrailingBlanks interface{}
+	var fixedLengthNullInSource interface{}
+	var collation interface{}
 
-	for i := 0; i < len(cols); i++ {
-		vals[i] = new(interface{})
-	}
-
-	output := make([]interface{}, 0)
+	output := make([]columnProperty, 0)
 
 	for rows.Next() {
-		err := rows.Scan(vals...)
+		err := rows.Scan(&columnName, &columnType, &computed, &length, &prec, &scale, &nullable, &trimTrailingBlanks, &fixedLengthNullInSource, &collation)
+
 		if err != nil {
 			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
 		}
 
-		columnProperties := make(map[string]string, 0)
+		nullable := convertColumnValueToString(&nullable)
 
-		for i := 0; i < len(vals); i++ {
-			switch cols[i] {
-			case "Column_name":
-				columnProperties["name"] = convertColumnValueToString(vals[i].(*interface{}))
-			case "Type":
-				columnProperties["type"] = convertColumnValueToString(vals[i].(*interface{}))
-			case "Length":
-				columnProperties["size"] = convertColumnValueToString(vals[i].(*interface{}))
-			case "Nullable":
-				if vals[i] == "no" {
-					columnProperties["null"] = "NULL"
+		columnProperties := columnProperty{
+			convertColumnValueToString(&columnName),
+			convertColumnValueToString(&columnType),
+			convertColumnValueToString(&length),
+			// To safely handle an inconsistent representation of nullable or not in sql server output
+			func() string {
+				if nullable == "no" {
+					return "not null"
 				} else {
-					columnProperties["null"] = "NOT NULL"
+					return "null"
 				}
-
-			case "Collation":
-				columnProperties["collation"] = convertColumnValueToString(vals[i].(*interface{}))
-			default:
-				continue
-
-			}
+			}(),
+			convertColumnValueToString(&collation),
 		}
 
 		output = append(output, columnProperties)
@@ -551,7 +438,10 @@ func getColumnProperties(rows *sql.Rows) (error, []interface{}) {
 	return nil, output
 }
 
-// Normalising the scattered interface{} to just a string that makes sense.
+// A canonical representation of property values as strings makes sense to sql users.
+// Ex: "Error: Collation is NULL" instead of "Error: Collation is `Nil`"
+// Normalising to one type makes switch cases over sql values easier than type matching interface{}.
+// The advantage of not having this method doesn't bring any alternative value adds than removal of few lines.
 func convertColumnValueToString(pval *interface{}) string {
 	switch v := (*pval).(type) {
 	case nil:
@@ -569,4 +459,51 @@ func convertColumnValueToString(pval *interface{}) string {
 	default:
 		return fmt.Sprint(v)
 	}
+}
+
+func (c columnToSqlQuery) appendColumnProperties(columnProperties []columnProperty) columnToSqlQuery {
+	for _, m := range columnProperties {
+		if m.collation != "NULL" {
+			c[m.name] = fmt.Sprintf("%s collate %s %s", m.columnType, m.collation, m.null)
+		} else {
+			c[m.name] = fmt.Sprintf("%s %s", m.columnType, m.null)
+		}
+	}
+
+	return c
+}
+
+func (c columnToSqlQuery) appendIdentityProperties(identityProperty identityProperty) columnToSqlQuery {
+	for k, v := range c {
+		if k == identityProperty.identity {
+			identity := "identity" + fmt.Sprintf("(%s, %s)", identityProperty.seed, identityProperty.increment)
+			c[k] = fmt.Sprintf("%s %s", v, identity)
+
+			// A sql table can have only one column with identity properties
+			break
+		}
+	}
+
+	return c
+}
+
+func (c constraintProperties) toConstraintMap() map[string]string {
+	constraintsMap := make(map[string]string, 0)
+
+	for _, constraint := range c {
+		switch constraint.constraintName {
+		case "PRIMARY KEY (clustered)":
+			constraintsMap[constraint.constraintName] = fmt.Sprintf("primary key clustered (%s)", constraint.constraintKeys)
+		case "RIMARY KEY (non-clustered)":
+			constraintsMap[constraint.constraintName] = fmt.Sprintf("primary key nonclustered (%s)", constraint.constraintKeys)
+		case "UNIQUE (non-clustered":
+			constraintsMap[constraint.constraintName] = fmt.Sprintf("unique nonclustered (%s)", constraint.constraintKeys)
+		case "UNIQUE (clustered)":
+			constraintsMap[constraint.constraintName] = fmt.Sprintf("unique clustered (%s)", constraint.constraintKeys)
+		default:
+			continue
+		}
+	}
+
+	return constraintsMap
 }
