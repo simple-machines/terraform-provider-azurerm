@@ -358,8 +358,7 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 
 	cQuery := columnToSqlQuery(output)
 
-	cQuery.appendColumnProperties(columnProperties)
-	cQuery.appendIdentityProperties(identityProperties)
+	cQuery.appendColumnProperties(columnProperties).appendIdentityProperties(identityProperties)
 
 	log.Printf("the constraint properties are %v", constraintProperties.toConstraintMap())
 
