@@ -170,7 +170,6 @@ func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 }
 
 func resourceArmSqlUpdate(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("m i fucking here pls? damn")
 	tablename := d.Get("tablename").(string)
 	databases := d.Get("database").([]interface{})
 	config := databases[0].(map[string]interface{})
@@ -197,24 +196,23 @@ func resourceArmSqlUpdate(d *schema.ResourceData, meta interface{}) error {
 
 	if d.HasChange("columns") {
 		prev, newValue := d.GetChange("columns")
-		log.Printf("The new and old values are: %v, %v", prev, newValue)
 
 		for newKey, newValue := range newValue.(map[string]interface{}) {
 			oldValue := prev.(map[string]interface{})[newKey]
 
 			if oldValue == nil {
 				rows, err := conn.Query(fmt.Sprintf("ALTER TABLE %s ADD %s %s", tablename, newKey, newValue.(string)))
+				closeRows(rows)
 				if err != nil {
 					return fmt.Errorf("Cannot add a new column into the table: %v", err.Error())
 				}
-				closeRows(rows)
 
-			} else {
+			} else if newValue != oldValue {
 				rows, err := conn.Query(fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s %s", tablename, newKey, newValue.(string)))
+				closeRows(rows)
 				if err != nil {
 					return fmt.Errorf("Cannot alter an existing column in the table: %v", err.Error())
 				}
-				closeRows(rows)
 			}
 		}
 
