@@ -494,7 +494,7 @@ func (c constraintProperties) toConstraintMap() map[string]string {
 		switch constraint.constraintName {
 		case "PRIMARY KEY (clustered)":
 			constraintsMap[constraint.constraintName] = fmt.Sprintf("primary key clustered (%s)", constraint.constraintKeys)
-		case "RIMARY KEY (non-clustered)":
+		case "PRIMARY KEY (non-clustered)":
 			constraintsMap[constraint.constraintName] = fmt.Sprintf("primary key nonclustered (%s)", constraint.constraintKeys)
 		case "UNIQUE (non-clustered":
 			constraintsMap[constraint.constraintName] = fmt.Sprintf("unique nonclustered (%s)", constraint.constraintKeys)
