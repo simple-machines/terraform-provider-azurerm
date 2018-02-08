@@ -44,7 +44,7 @@ func resourceArmSqlTable() *schema.Resource {
 		Create: resourceArmSqlTableCreate,
 		Read:   resourceArmSqlTableRead,
 		Update: resourceArmSqlTableCreate,
-		Delete: resourceArmSqlTableCreate,
+		Delete: resourceArmSqlDelete,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
@@ -81,7 +81,7 @@ func resourceArmSqlTable() *schema.Resource {
 				},
 			},
 
-			"constraint": {
+			"constraints": {
 				Type:        schema.TypeMap,
 				Description: "Define the constraint name and the value as a sql string. Ex: constraint(). Currently only primary keys is supported",
 				Optional:    true,
@@ -105,7 +105,6 @@ func resourceArmSqlTable() *schema.Resource {
 }
 
 func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
-	log.Printf("[INFO] Into the table creation logic")
 	columns := d.Get("columns").(map[string]interface{})
 	constraints := d.Get("constraints").(map[string]interface{})
 	tablename := d.Get("tablename").(string)
@@ -113,13 +112,12 @@ func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 	config := databases[0].(map[string]interface{})
 	name := config["name"].(string)
 	server := config["server"].(string)
-
-	log.Printf("[INFO] Ther server name is %v", server)
-
 	username := config["username"].(string)
 	password := config["password"].(string)
 	dsn := "server=" + server + ";user id=" + username + ";password=" + password + ";database=" + name
+
 	log.Printf("[INFO] The connection string is %s", dsn)
+
 	conn, err := sql.Open("mssql", dsn)
 
 	if err != nil {
@@ -171,6 +169,43 @@ func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	return resourceArmSqlTableRead(d, meta)
+}
+
+func resourceArmSqlDelete(d *schema.ResourceData, meta interface{}) error {
+	tablename := d.Get("tablename").(string)
+	databases := d.Get("database").([]interface{})
+	config := databases[0].(map[string]interface{})
+	name := config["name"].(string)
+	server := config["server"].(string)
+	username := config["username"].(string)
+	password := config["password"].(string)
+	dsn := "server=" + server + ";user id=" + username + ";password=" + password + ";database=" + name
+
+	conn, err := sql.Open("mssql", dsn)
+
+	if err != nil {
+		return fmt.Errorf("Cannot connect: %v", err.Error())
+	}
+
+	err = conn.Ping()
+
+	if err != nil {
+		return fmt.Errorf("Cannot connect: %v ", err.Error())
+	}
+
+	defer conn.Close()
+
+	rows, err := conn.Query(fmt.Sprintf("DROP TABLE %s", tablename))
+
+	if err != nil {
+		return fmt.Errorf("Unable to delete the table resource from the database: %v", err.Error())
+	}
+
+	log.Printf("Succesfully Deleted the table resource %s", tablename)
+
+	defer closeRows(rows)
+
+	return nil
 }
 
 // Go made me do this...
@@ -288,7 +323,6 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 }
 
 func getTableProperties(rows *sql.Rows) (error, []interface{}) {
-	log.Printf("Into getting the table properties")
 	var name interface{}
 	var owner interface{}
 	var tableType interface{}
@@ -387,9 +421,6 @@ func getConstraintProperties(rows *sql.Rows) (error, constraintProperties) {
 
 func getColumnProperties(rows *sql.Rows) (error, []columnProperty) {
 	cols, err := rows.Columns()
-
-	log.Printf("[INFO] The metadata columns while fetching column metadata are %v", cols)
-
 	if err != nil || cols == nil {
 		return fmt.Errorf("Could not retrieve the metadata columns of the data %s", cols), nil
 	}
@@ -433,8 +464,6 @@ func getColumnProperties(rows *sql.Rows) (error, []columnProperty) {
 
 		output = append(output, columnProperties)
 	}
-
-	log.Printf("the output is %s", output)
 	return nil, output
 }
 
