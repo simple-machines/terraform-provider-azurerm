@@ -408,11 +408,6 @@ func getConstraintPropertiesFromRows(rows *sql.Rows) (error, constraintPropertie
 }
 
 func getColumnPropertiesFromRows(rows *sql.Rows) (error, []columnProperty) {
-	cols, err := rows.Columns()
-	if err != nil || cols == nil {
-		return fmt.Errorf("Could not retrieve the metadata columns of the data %s", cols), nil
-	}
-
 	var columnName interface{}
 	var columnType interface{}
 	var computed interface{}
