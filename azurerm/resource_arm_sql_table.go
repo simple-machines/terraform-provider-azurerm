@@ -35,7 +35,7 @@ type constraintProperty struct {
 type constraintProperties []constraintProperty
 
 // columnToSqlQuery is a receiver to custom functions such as append columnProperties, identityProperties etc.
-type columnToSqlQuery map[string]string
+type columnsToSqlStatements map[string]string
 
 func resourceArmSqlTable() *schema.Resource {
 	return &schema.Resource{
@@ -106,29 +106,14 @@ func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 	columns := d.Get("columns").(map[string]interface{})
 	constraints := d.Get("constraints").(map[string]interface{})
 	tablename := d.Get("tablename").(string)
-	databases := d.Get("database").([]interface{})
-	config := databases[0].(map[string]interface{})
-	name := config["name"].(string)
-	server := config["server"].(string)
-	username := config["username"].(string)
-	password := config["password"].(string)
-	dsn := "server=" + server + ";user id=" + username + ";password=" + password + ";database=" + name
 
-	log.Printf("[INFO] The connection string is %s", dsn)
-
-	conn, err := sql.Open("mssql", dsn)
-
-	if err != nil {
-		return fmt.Errorf("Cannot connect: %v", err.Error())
-	}
-
-	err = conn.Ping()
-
-	if err != nil {
-		return fmt.Errorf("Cannot connect: %v ", err.Error())
-	}
+	conn, err := getConnection(d)
 
 	defer conn.Close()
+
+	if err != nil {
+		return err
+	}
 
 	querySlices := make([]string, 0, len(columns))
 
@@ -171,28 +156,14 @@ func resourceArmSqlTableCreate(d *schema.ResourceData, meta interface{}) error {
 
 func resourceArmSqlUpdate(d *schema.ResourceData, meta interface{}) error {
 	tablename := d.Get("tablename").(string)
-	databases := d.Get("database").([]interface{})
-	config := databases[0].(map[string]interface{})
-	name := config["name"].(string)
-	server := config["server"].(string)
-	username := config["username"].(string)
-	password := config["password"].(string)
-	dsn := "server=" + server + ";user id=" + username + ";password=" + password + ";database=" + name
 
-	conn, err := sql.Open("mssql", dsn)
-
-	if err != nil {
-		return fmt.Errorf("Cannot connect to the database: %v", err.Error())
-	}
-
-	err = conn.Ping()
-
-	if err != nil {
-		return fmt.Errorf("Cannot connect to the database: %v", err.Error())
-
-	}
+	conn, err := getConnection(d)
 
 	defer conn.Close()
+
+	if err != nil {
+		return nil
+	}
 
 	if d.HasChange("columns") {
 		prev, newValue := d.GetChange("columns")
@@ -203,6 +174,7 @@ func resourceArmSqlUpdate(d *schema.ResourceData, meta interface{}) error {
 			if oldValue == nil {
 				rows, err := conn.Query(fmt.Sprintf("ALTER TABLE %s ADD %s %s", tablename, newKey, newValue.(string)))
 				closeRows(rows)
+
 				if err != nil {
 					return fmt.Errorf("Cannot add a new column into the table: %v", err.Error())
 				}
@@ -210,6 +182,7 @@ func resourceArmSqlUpdate(d *schema.ResourceData, meta interface{}) error {
 			} else if newValue != oldValue {
 				rows, err := conn.Query(fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s %s", tablename, newKey, newValue.(string)))
 				closeRows(rows)
+
 				if err != nil {
 					return fmt.Errorf("Cannot alter an existing column in the table: %v", err.Error())
 				}
@@ -224,27 +197,14 @@ func resourceArmSqlUpdate(d *schema.ResourceData, meta interface{}) error {
 
 func resourceArmSqlDelete(d *schema.ResourceData, meta interface{}) error {
 	tablename := d.Get("tablename").(string)
-	databases := d.Get("database").([]interface{})
-	config := databases[0].(map[string]interface{})
-	name := config["name"].(string)
-	server := config["server"].(string)
-	username := config["username"].(string)
-	password := config["password"].(string)
-	dsn := "server=" + server + ";user id=" + username + ";password=" + password + ";database=" + name
 
-	conn, err := sql.Open("mssql", dsn)
-
-	if err != nil {
-		return fmt.Errorf("Cannot connect: %v", err.Error())
-	}
-
-	err = conn.Ping()
-
-	if err != nil {
-		return fmt.Errorf("Cannot connect: %v ", err.Error())
-	}
+	conn, err := getConnection(d)
 
 	defer conn.Close()
+
+	if err != nil {
+		return nil
+	}
 
 	rows, err := conn.Query(fmt.Sprintf("DROP TABLE %s", tablename))
 
@@ -259,110 +219,88 @@ func resourceArmSqlDelete(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-// Go made me do this...
-func closeRows(r *sql.Rows) error {
-	var err error
-
-	if r != nil {
-		err = r.Close()
-	}
-
-	return err
-}
-
 func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient)
 	subscriptionId := client.subscriptionId
-
-	resourceGroup := d.Get("resource_group_name").(string)
-
-	log.Printf("resource group %v", resourceGroup)
-	tablename := d.Get("tablename").(string)
 	databases := d.Get("database").([]interface{})
-	database := databases[0]
 	config := databases[0].(map[string]interface{})
-	name := config["name"].(string)
+	database := config["name"].(string)
 	server := config["server"].(string)
+	resourceGroup := d.Get("resource_group_name").(string)
+	tablename := d.Get("tablename").(string)
 
-	username := config["username"].(string)
-	password := config["password"].(string)
-
-	dsn := "server=" + server + ";user id=" + username + ";password=" + password + ";database=" + name
-
-	conn, err := sql.Open("mssql", dsn)
-
-	err = conn.Ping()
-
-	if err != nil {
-		return fmt.Errorf("Unable to connect to the server/database: %v ", err.Error())
-	}
+	conn, err := getConnection(d)
 
 	defer conn.Close()
 
+	if err != nil {
+		return err
+	}
+
+	//
+	// Fetch table properties: Table name, owner, column descriptions and identity
+	//
 	spHelpRows, err := conn.Query(fmt.Sprintf("sp_help %s", tablename))
 
 	defer closeRows(spHelpRows)
 
 	if err != nil {
-		// If user creates through tf, and deletes manually. The fallback is to clear the tfstate as it is invalid now.
-		return fmt.Errorf("Unable to query the description of the table %s: %v", tablename, err.Error())
+		return fmt.Errorf("Unable to query table description: %v", err.Error())
 	}
 
-	err, defaultTableProperties := getTableProperties(spHelpRows)
+	err, defaultTableProperties := getTablePropertiesFromRows(spHelpRows)
 
 	if err != nil {
-		return fmt.Errorf("Unable to obtain the table properties from the table description: %s", err.Error())
+		return err
 	}
 
 	if !spHelpRows.NextResultSet() {
-		return fmt.Errorf("Could not read the column properties from the table %s", tablename)
+		return fmt.Errorf("No additional result set available in sp_help to scan the column properties of table %s", tablename)
 	}
 
-	err, columnProperties := getColumnProperties(spHelpRows)
+	err, columnProperties := getColumnPropertiesFromRows(spHelpRows)
 
 	if err != nil {
-		return fmt.Errorf("Unable to obtain the column properties from the table description: %s", err.Error())
+		return err
 	}
 
 	if !spHelpRows.NextResultSet() {
-		return fmt.Errorf("Could not read the identity properties from the table %s", tablename)
+		return fmt.Errorf("No additional result set available in sp_help to scan the identity properties of table %s", tablename)
 	}
 
-	err, identityProperties := getIdentityProperties(spHelpRows)
+	err, identityProperties := getIdentityPropertiesFromRows(spHelpRows)
 
 	if err != nil {
 		return fmt.Errorf("Unable to obtain the indentity properties from the table description: %s", err.Error())
 	}
 
-	if err != nil {
-		return fmt.Errorf("Unable to obtain the details from the index properties: %s", err.Error())
-	}
-
+	//
+	// Fetch table constraints
+	//
 	spHelpConstraintsRows, err := conn.Query(fmt.Sprintf("sp_helpconstraint %s", tablename))
 
 	defer closeRows(spHelpConstraintsRows)
 
 	if err != nil {
-		return fmt.Errorf("Unable to query the constraints of the table: %s", err.Error())
+		return fmt.Errorf("Unable to query the table constraints: %s", err.Error())
 	}
 
-	err, constraintProperties := getConstraintProperties(spHelpConstraintsRows)
+	err, constraintProperties := getConstraintPropertiesFromRows(spHelpConstraintsRows)
 
 	if err != nil {
-		return fmt.Errorf("Unable to obtain the details from tha table constraints: %s", err.Error())
+		return err
 	}
 
 	d.SetId(fmt.Sprintf("subscriptions/%s/resourceGroups/%s/providers/Microsoft.sql/servers/%s/databases/%s/tables/%s", subscriptionId, resourceGroup, server, database, tablename))
 
-	output := make(map[string]string, 0)
+	// Build the map with column names and corresponding sql statements.
+	columnsToSqlStatements := columnsToSqlStatements(make(map[string]string, 0))
 
-	cQuery := columnToSqlQuery(output)
-
-	cQuery.appendColumnProperties(columnProperties).appendIdentityProperties(identityProperties)
+	columnsToSqlStatements.appendColumnProperties(columnProperties).appendIdentityProperties(identityProperties)
 
 	log.Printf("the constraint properties are %v", constraintProperties.toConstraintMap())
 
-	d.Set("columns", cQuery)
+	d.Set("columns", columnsToSqlStatements)
 	d.Set("constraints", constraintProperties.toConstraintMap())
 
 	log.Printf("the default table properties is %v", defaultTableProperties)
@@ -372,7 +310,7 @@ func resourceArmSqlTableRead(d *schema.ResourceData, meta interface{}) error {
 	return nil
 }
 
-func getTableProperties(rows *sql.Rows) (error, []interface{}) {
+func getTablePropertiesFromRows(rows *sql.Rows) (error, []interface{}) {
 	var name interface{}
 	var owner interface{}
 	var tableType interface{}
@@ -383,7 +321,7 @@ func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 	for rows.Next() {
 		err := rows.Scan(&name, &owner, &tableType, &createdDateTime)
 		if err != nil {
-			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
+			return fmt.Errorf("Failed to scan/parse the column properties of the table: %v", err.Error()), nil
 		}
 
 		tableProperties["name"] = convertColumnValueToString(&name)
@@ -395,7 +333,7 @@ func getTableProperties(rows *sql.Rows) (error, []interface{}) {
 
 }
 
-func getIdentityProperties(rows *sql.Rows) (error, identityProperty) {
+func getIdentityPropertiesFromRows(rows *sql.Rows) (error, identityProperty) {
 	var identity interface{}
 	var seed interface{}
 	var increment interface{}
@@ -405,7 +343,7 @@ func getIdentityProperties(rows *sql.Rows) (error, identityProperty) {
 		err := rows.Scan(&identity, &seed, &increment, &notForReplication)
 
 		if err != nil {
-			return fmt.Errorf("Cannot scan for identity details of the table %v. This might be because of the conflicts in SQL version", err.Error()), identityProperty{}
+			return fmt.Errorf("Failed to scan/parse the column properties of the table: %v", err.Error()), identityProperty{}
 		}
 
 		// Better not to have multiple identity properties
@@ -424,7 +362,7 @@ func getIdentityProperties(rows *sql.Rows) (error, identityProperty) {
 	return nil, id
 }
 
-func getConstraintProperties(rows *sql.Rows) (error, constraintProperties) {
+func getConstraintPropertiesFromRows(rows *sql.Rows) (error, constraintProperties) {
 	var objName interface{}
 
 	for rows.Next() {
@@ -432,7 +370,7 @@ func getConstraintProperties(rows *sql.Rows) (error, constraintProperties) {
 		err := rows.Scan(&objName)
 
 		if err != nil {
-			return fmt.Errorf("Cannot obtain the object name as part of scanning the constraint properties: %v", err.Error()), nil
+			return fmt.Errorf("Failed to scan/parse the constraint properties of the table: %v", err.Error()), nil
 		}
 	}
 
@@ -469,7 +407,7 @@ func getConstraintProperties(rows *sql.Rows) (error, constraintProperties) {
 	return nil, constraintProperties(output)
 }
 
-func getColumnProperties(rows *sql.Rows) (error, []columnProperty) {
+func getColumnPropertiesFromRows(rows *sql.Rows) (error, []columnProperty) {
 	cols, err := rows.Columns()
 	if err != nil || cols == nil {
 		return fmt.Errorf("Could not retrieve the metadata columns of the data %s", cols), nil
@@ -492,7 +430,7 @@ func getColumnProperties(rows *sql.Rows) (error, []columnProperty) {
 		err := rows.Scan(&columnName, &columnType, &computed, &length, &prec, &scale, &nullable, &trimTrailingBlanks, &fixedLengthNullInSource, &collation)
 
 		if err != nil {
-			return fmt.Errorf("Cannot scan for table details %v", err.Error()), nil
+			return fmt.Errorf("Failed to scan/parse the column properties of the table: %v", err.Error()), nil
 		}
 
 		nullable := convertColumnValueToString(&nullable)
@@ -540,7 +478,7 @@ func convertColumnValueToString(pval *interface{}) string {
 	}
 }
 
-func (c columnToSqlQuery) appendColumnProperties(columnProperties []columnProperty) columnToSqlQuery {
+func (c columnsToSqlStatements) appendColumnProperties(columnProperties []columnProperty) columnsToSqlStatements {
 	for _, m := range columnProperties {
 		columnType := func() string {
 			if m.columnType == "varchar" || m.columnType == "nvarchar" || m.columnType == "char" {
@@ -560,7 +498,7 @@ func (c columnToSqlQuery) appendColumnProperties(columnProperties []columnProper
 	return c
 }
 
-func (c columnToSqlQuery) appendIdentityProperties(identityProperty identityProperty) columnToSqlQuery {
+func (c columnsToSqlStatements) appendIdentityProperties(identityProperty identityProperty) columnsToSqlStatements {
 	for k, v := range c {
 		if k == identityProperty.identity {
 			identity := "identity" + fmt.Sprintf("(%s, %s)", identityProperty.seed, identityProperty.increment)
@@ -593,4 +531,35 @@ func (c constraintProperties) toConstraintMap() map[string]string {
 	}
 
 	return constraintsMap
+}
+
+func getConnection(d *schema.ResourceData) (*sql.DB, error) {
+	databases := d.Get("database").([]interface{})
+	config := databases[0].(map[string]interface{})
+	name := config["name"].(string)
+	server := config["server"].(string)
+
+	username := config["username"].(string)
+	password := config["password"].(string)
+	dsn := "server=" + server + ";user id=" + username + ";password=" + password + ";database=" + name
+	conn, err := sql.Open("mssql", dsn)
+
+	err = conn.Ping()
+
+	if err != nil {
+		return nil, fmt.Errorf("Unable to connect to the server: %v ", err.Error())
+	}
+
+	return conn, nil
+}
+
+// Go made me do this...
+func closeRows(r *sql.Rows) error {
+	var err error
+
+	if r != nil {
+		err = r.Close()
+	}
+
+	return err
 }
