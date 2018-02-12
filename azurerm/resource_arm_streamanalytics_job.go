@@ -945,6 +945,8 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 	}
 }
 
+//TODO expand to handle non-string types
+//Include resource that is broken in error message
 func extractAndValidateRequiredProperty(props map[string]interface{}) func(string) (*string, error) {
 	return func(k string) (*string, error) {
 		value := props[k].(string)
