@@ -172,7 +172,7 @@ func Provider() terraform.ResourceProvider {
 			"azurerm_storage_share":                      resourceArmStorageShare(),
 			"azurerm_storage_queue":                      resourceArmStorageQueue(),
 			"azurerm_storage_table":                      resourceArmStorageTable(),
-			"azurerm_streamanalytics_job":         	      resourceArmStreamAnalyticsJob(),
+			"azurerm_streamanalytics_job":                resourceArmStreamAnalyticsJob(),
 			"azurerm_subnet":                             resourceArmSubnet(),
 			"azurerm_template_deployment":                resourceArmTemplateDeployment(),
 			"azurerm_traffic_manager_endpoint":           resourceArmTrafficManagerEndpoint(),

@@ -270,8 +270,8 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			// To avoid having to split the single transformation when we
 			// read.
 			"transformation": {
-				Type:     schema.TypeList,
-				Optional: true,
+				Type:        schema.TypeList,
+				Optional:    true,
 				MaxItems:    1,
 				Description: "SQL query to execute.",
 				Elem: &schema.Resource{
@@ -295,8 +295,8 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			},
 
 			"output": {
-				Type:     schema.TypeList,
-				Optional: true,
+				Type:        schema.TypeList,
+				Optional:    true,
 				Description: "Data outputs to be updated by queries.",
 				// TODO: When Terraform supports validating lists and sets.
 				// ValidateFunc: validateOutput,
@@ -806,7 +806,7 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 	datasource := data["datasource"].(string)
 
 	extractAndValidateProp := extractAndValidateRequiredProperty(data)
-	extractOptionalProp :=  extractOptionalProperty(data)
+	extractOptionalProp := extractOptionalProperty(data)
 
 	switch datasource {
 	case string(streamanalytics.TypeMicrosoftDataLakeAccounts):
@@ -862,7 +862,7 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 				SharedAccessPolicyName: policyName,
 				SharedAccessPolicyKey:  policyKey,
 				EventHubName:           eventHub,
-				PartitionKey:		partitionKey,
+				PartitionKey:           partitionKey,
 			},
 		}
 
@@ -958,7 +958,7 @@ func extractAndValidateRequiredProperty(props map[string]interface{}) func(strin
 }
 
 func extractOptionalProperty(props map[string]interface{}) func(string) *string {
-	return func (k string) *string {
+	return func(k string) *string {
 		value := props[k].(string)
 		if len(value) > 0 {
 			return utils.String(value)
