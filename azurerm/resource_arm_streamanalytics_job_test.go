@@ -723,7 +723,6 @@ resource "azurerm_streamanalytics_job" "test" {
 
   output {
     name              = "accteststreamoutput-%d"
-    serialization     = "Avro"
     datasource        = "Microsoft.Sql/Server/Database"
     database_server   = "${azurerm_sql_server.test.name}"
     database_name     = "${azurerm_sql_database.test.name}"

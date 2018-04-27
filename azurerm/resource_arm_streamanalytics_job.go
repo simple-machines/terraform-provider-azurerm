@@ -43,11 +43,13 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			"tags": tagsSchema(),
 
 			"sku": {
-				Description:  "(Standard)",
-				Type:         schema.TypeString,
-				Required:     true,
-				ForceNew:     true,
-				ValidateFunc: validateSku,
+				Description: "(Standard)",
+				Type:        schema.TypeString,
+				Required:    true,
+				ForceNew:    true,
+				ValidateFunc: validation.StringInSlice([]string{
+					string(streamanalytics.Standard),
+				}, true),
 			},
 
 			//
@@ -89,13 +91,13 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 				Description: "Name of a locale: [en-US], en-AU, fr-FR, ...",
 				Default:     "en-US",
 				Optional:    true,
-				// TODO Validate
+				// TODO Validate (maybe)
 			},
 
 			"late_arrival_max_delay": {
 				Description:  "Maximum time to wait for a late arrival in seconds. -1 means wait forever.",
 				Type:         schema.TypeInt,
-				Default:      5,
+				Default:      5, //TODO is this correct?
 				Optional:     true,
 				ValidateFunc: validation.IntBetween(-1, 1814399),
 			},
@@ -108,11 +110,14 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			},
 
 			"out_of_order_policy": {
-				// TODO: Document the default behaviour.
-				Type:             schema.TypeString,
-				Description:      "(Adjust, Drop)",
-				Optional:         true,
-				ValidateFunc:     validateOutOfOrderPolicy,
+				// TODO: Document the default behaviour. Update Description
+				Type:        schema.TypeString,
+				Description: "(Adjust, Drop)",
+				Optional:    true,
+				ValidateFunc: validation.StringInSlice([]string{
+					string(streamanalytics.Adjust),
+					string(streamanalytics.Drop),
+				}, true),
 				DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
 			},
 
@@ -123,7 +128,11 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 				Description:      "(CustomTime, [JobStartTime], LastOutputEventTime)",
 				Optional:         true,
 				DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
-				ValidateFunc:     validateOutputStartMode,
+				ValidateFunc: validation.StringInSlice([]string{
+					string(streamanalytics.CustomTime),
+					string(streamanalytics.JobStartTime),
+					string(streamanalytics.LastOutputEventTime),
+				}, true),
 			},
 
 			"output_start_time": {
@@ -141,11 +150,14 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 			},
 
 			"output_error_policy": {
-				Type:             schema.TypeString,
-				Description:      "(Stop, Drop)",
-				Optional:         true,
-				Default:          "Stop",
-				ValidateFunc:     validateOutputErrorPolicy,
+				Type:        schema.TypeString,
+				Description: "(Stop, Drop)",
+				Optional:    true,
+				Default:     "Stop",
+				ValidateFunc: validation.StringInSlice([]string{
+					string(streamanalytics.OutputErrorPolicyStop),
+					string(streamanalytics.OutputErrorPolicyDrop),
+				}, true),
 				DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
 			},
 
@@ -162,23 +174,32 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 							Required: true,
 						},
 						"type": {
-							Type:             schema.TypeString,
-							Required:         true,
-							ValidateFunc:     validateInputType,
+							Type:     schema.TypeString,
+							Required: true,
+							ValidateFunc: validation.StringInSlice([]string{
+								string(streamanalytics.TypeReference),
+								string(streamanalytics.TypeStream),
+							}, true),
 							DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
 						},
 						"serialization": {
-							Type:             schema.TypeString,
-							Description:      "(AVRO|CSV|JSON)",
-							Required:         true,
-							ValidateFunc:     validateSerializationType,
+							Type:        schema.TypeString,
+							Description: "(AVRO|CSV|JSON)",
+							Required:    true,
+							ValidateFunc: validation.StringInSlice([]string{
+								string(streamanalytics.TypeAvro),
+								string(streamanalytics.TypeCsv),
+								string(streamanalytics.TypeJSON),
+							}, true),
 							DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
 						},
 						"encoding": {
-							Type:             schema.TypeString,
-							Description:      "(UTF8)",
-							Optional:         true,
-							ValidateFunc:     validateEncoding,
+							Type:        schema.TypeString,
+							Description: "(UTF8)",
+							Optional:    true,
+							ValidateFunc: validation.StringInSlice([]string{
+								string(streamanalytics.UTF8),
+							}, true),
 							DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
 						},
 						"delimiter": {
@@ -190,12 +211,21 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 							Description:      "(Array,LineSeparated)",
 							Optional:         true,
 							DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
+							ValidateFunc: validation.StringInSlice([]string{
+								string(streamanalytics.Array),
+								string(streamanalytics.LineSeparated),
+							}, true),
 						},
 						"datasource": {
-							Type:         schema.TypeString,
-							Description:  "Azure datasource type.",
-							Required:     true,
-							ValidateFunc: validateArmStreamAnalyticsInputDatasource,
+							Type:        schema.TypeString,
+							Description: "Azure datasource type.",
+							Required:    true,
+							ValidateFunc: validation.StringInSlice([]string{
+								string(streamanalytics.TypeBasicReferenceInputDataSourceTypeMicrosoftStorageBlob),
+								string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftStorageBlob),
+								string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftDevicesIotHubs),
+								string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftServiceBusEventHub),
+							}, true),
 						},
 						// Storage account fields (for both stream and reference inputs)
 						"storage_account_name": {
@@ -225,8 +255,9 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 						},
 						"storage_source_partition_count": {
 							// For Stream
-							Type:     schema.TypeInt,
-							Optional: true,
+							Type:         schema.TypeInt,
+							Optional:     true,
+							ValidateFunc: validation.IntBetween(1, 256),
 						},
 
 						// Shared Event and IoT Hub fields
@@ -303,16 +334,20 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"name": {
-							Type:     schema.TypeString,
-							Required: true,
-							// TODO: Validate
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringLenBetween(3, 63),
 						},
 						"serialization": {
 							Type:             schema.TypeString,
 							Description:      "(AVRO|CSV|JSON)",
-							Required:         true,
+							Optional:         true,
 							DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
-							ValidateFunc:     validation.StringInSlice([]string{"Avro", "CSV", "JSON"}, true),
+							ValidateFunc: validation.StringInSlice([]string{
+								string(streamanalytics.TypeAvro),
+								string(streamanalytics.TypeCsv),
+								string(streamanalytics.TypeJSON),
+							}, true),
 						},
 						"encoding": {
 							// When serialization==CSV or serialization==JSON
@@ -320,7 +355,9 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 							Description:      "Required when using CSV or JSON serialization (UTF8)",
 							Optional:         true,
 							DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
-							ValidateFunc:     validation.StringInSlice([]string{"UTF8"}, true),
+							ValidateFunc: validation.StringInSlice([]string{
+								string(streamanalytics.UTF8),
+							}, true),
 						},
 						"delimiter": {
 							// When serialization==CSV.
@@ -332,13 +369,18 @@ func resourceArmStreamAnalyticsJob() *schema.Resource {
 							Description:      "Required when using JSON serialization (Array, LineSeparated)",
 							Optional:         true,
 							DiffSuppressFunc: ignoreCaseDiffSuppressFunc,
-							ValidateFunc:     validation.StringInSlice([]string{"Array", "LineSeparated"}, true),
+							ValidateFunc: validation.StringInSlice([]string{
+								string(streamanalytics.Array),
+								string(streamanalytics.LineSeparated),
+							}, true),
 						},
 						"datasource": {
-							Type:         schema.TypeString,
-							Description:  "Azure datasource type",
-							Required:     true,
-							ValidateFunc: validateArmStreamAnalyticsOutputDatasource,
+							Type:        schema.TypeString,
+							Description: "Azure datasource type",
+							Required:    true,
+							// TODO replace this with standard StringInSlice validation
+							// once other datasources are supported. This function providers better feedback.
+							ValidateFunc: validateStreamAnalyticsOutputDatasource,
 						},
 						// Fields to support Blob storage
 						// Storage account fields (for both stream and reference inputs)
@@ -465,7 +507,6 @@ func resourceArmStreamAnalyticsJobCreate(d *schema.ResourceData, meta interface{
 	jobName := d.Get("name").(string)
 	location := d.Get("location").(string)
 	tags := d.Get("tags").(map[string]interface{})
-
 	sku := d.Get("sku").(string)
 
 	job := streamanalytics.StreamingJob{
@@ -535,7 +576,7 @@ func resourceArmStreamAnalyticsJobCreate(d *schema.ResourceData, meta interface{
 		inputConfigs := make([]streamanalytics.Input, 0, len(inputs))
 		for _, configRaw := range inputs {
 			config := configRaw.(map[string]interface{})
-			input, err := resourceArmStreamAnalyticsParseInput(config)
+			input, err := expandStreamAnalyticsInput(config)
 			if err != nil {
 				return err
 			}
@@ -552,7 +593,7 @@ func resourceArmStreamAnalyticsJobCreate(d *schema.ResourceData, meta interface{
 		}
 		for _, configRaw := range transformations {
 			config := configRaw.(map[string]interface{})
-			transform, err := resourceArmStreamAnalyticsParseTransformation(config)
+			transform, err := expandStreamAnalyticsTransformation(config)
 			if err != nil {
 				return err
 			}
@@ -566,7 +607,7 @@ func resourceArmStreamAnalyticsJobCreate(d *schema.ResourceData, meta interface{
 		outputConfigs := make([]streamanalytics.Output, 0, len(outputs))
 		for _, configRaw := range outputs {
 			config := configRaw.(map[string]interface{})
-			output, err := resourceArmStreamAnalyticsParseOutput(config)
+			output, err := expandStreamAnalyticsOutput(config)
 			if err != nil {
 				return err
 			}
@@ -600,6 +641,7 @@ func resourceArmStreamAnalyticsJobCreate(d *schema.ResourceData, meta interface{
 	return resourceArmStreamAnalyticsJobRead(d, meta)
 }
 
+//TODO check properties whether they are present
 func resourceArmStreamAnalyticsJobRead(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ArmClient).streamAnalyticsClient
 	ctx := meta.(*ArmClient).StopContext
@@ -654,7 +696,9 @@ func resourceArmStreamAnalyticsJobRead(d *schema.ResourceData, meta interface{})
 	log.Printf("[INFO] Received %d inputs, %d outputs", len(*properties.Inputs), len(*properties.Outputs))
 
 	if properties.Inputs != nil && len(*properties.Inputs) > 0 {
-		inputConfigs := make([]map[string]interface{}, 0, len(*properties.Inputs))
+		// TODO move into singleflatten method to process inputs
+		// as done in outputs
+		inputConfigs := make([]interface{}, 0)
 		log.Printf("[INFO] Parsing %d inputs: %+v", len(*properties.Inputs), *properties.Inputs)
 
 		for _, input := range *properties.Inputs {
@@ -685,18 +729,14 @@ func resourceArmStreamAnalyticsJobRead(d *schema.ResourceData, meta interface{})
 	}
 
 	if properties.Outputs != nil && len(*properties.Outputs) > 0 {
-		outputConfigs := make([]map[string]interface{}, 0, len(*properties.Outputs))
-		log.Printf("[INFO] Parsing %d outputs: %+v", len(*properties.Outputs), *properties.Outputs)
-
-		for _, output := range *properties.Outputs {
-			conf, err := flattenStreamAnalyticsJobOutput(&output)
-			if err != nil {
-				return err
-			}
-			outputConfigs = append(outputConfigs, *conf)
+		outputs, err := flattenStreamAnalyticsJobOutput(properties.Outputs)
+		if err != nil {
+			return err
 		}
 
-		d.Set("output", outputConfigs)
+		if err := d.Set("output", outputs); err != nil {
+			return err
+		}
 	} else {
 		log.Printf("[WARN] Received no outputs")
 	}
@@ -721,23 +761,22 @@ func resourceArmStreamAnalyticsJobDelete(d *schema.ResourceData, meta interface{
 }
 
 // Convert an `input{ ... }` section into an Input structure.
-func resourceArmStreamAnalyticsParseInput(data map[string]interface{}) (*streamanalytics.Input, error) {
+func expandStreamAnalyticsInput(data map[string]interface{}) (*streamanalytics.Input, error) {
 	inputName := data["name"].(string)
 	inputType := data["type"].(string)
 
 	input := streamanalytics.Input{
 		Name: &inputName,
-		// Type:
 	}
 
-	serialization, err := parseArmStreamAnalyticsSerialization(data)
+	serialization, err := expandStreamAnalyticsSerialization(data)
 	if err != nil {
 		return nil, err
 	}
 
 	switch inputType {
 	case string(streamanalytics.TypeReference):
-		ds, err := parseArmStreamAnalyticsReferenceDatasource(data)
+		ds, err := expandStreamAnalyticsInputReferenceDatasource(data)
 		if err != nil {
 			return nil, err
 		}
@@ -748,7 +787,7 @@ func resourceArmStreamAnalyticsParseInput(data map[string]interface{}) (*streama
 		}
 
 	case string(streamanalytics.TypeStream):
-		ds, err := parseArmStreamAnalyticsStreamDatasource(data)
+		ds, err := expandStreamAnalyticsInputStreamDatasource(data)
 		if err != nil {
 			return nil, err
 		}
@@ -763,7 +802,7 @@ func resourceArmStreamAnalyticsParseInput(data map[string]interface{}) (*streama
 }
 
 // Convert a `transformation{ ... }` section in to a Transformation structure.
-func resourceArmStreamAnalyticsParseTransformation(data map[string]interface{}) (*streamanalytics.Transformation, error) {
+func expandStreamAnalyticsTransformation(data map[string]interface{}) (*streamanalytics.Transformation, error) {
 	name := data["name"].(string)
 	streamingUnits := int32(data["streaming_units"].(int))
 	query := data["query"].(string)
@@ -779,16 +818,17 @@ func resourceArmStreamAnalyticsParseTransformation(data map[string]interface{}) 
 	return &result, nil
 }
 
-// Convert an `input{ ... }` section into an Input structure.
-func resourceArmStreamAnalyticsParseOutput(data map[string]interface{}) (*streamanalytics.Output, error) {
+// Convert an `output{ ... }` section into an Output structure.
+func expandStreamAnalyticsOutput(data map[string]interface{}) (*streamanalytics.Output, error) {
 	name := data["name"].(string)
 
-	serialization, err := parseArmStreamAnalyticsSerialization(data)
+	//TODO check if serialization is there?
+	serialization, err := expandStreamAnalyticsSerialization(data)
 	if err != nil {
 		return nil, err
 	}
 
-	ds, err := parseArmStreamAnalyticsOutputDatasource(data)
+	ds, err := expandStreamAnalyticsOutputDatasource(data)
 	if err != nil {
 		return nil, err
 	}
@@ -802,23 +842,23 @@ func resourceArmStreamAnalyticsParseOutput(data map[string]interface{}) (*stream
 	}, nil
 }
 
-func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (streamanalytics.BasicOutputDataSource, error) {
-	datasource := data["datasource"].(string)
+func expandStreamAnalyticsOutputDatasource(data map[string]interface{}) (streamanalytics.BasicOutputDataSource, error) {
+	// Calling this here until terraform supports validation of lists
+	_, es := validateOutputDatasource(data, "output")
+	if len(es) > 0 {
+		return nil, es[0]
+	}
 
-	extractAndValidateProp := extractAndValidateRequiredProperty(data)
-	extractOptionalProp := extractOptionalProperty(data)
+	datasource := data["datasource"].(string)
 
 	switch datasource {
 	case string(streamanalytics.TypeMicrosoftDataLakeAccounts):
-		// TODO Validate inputs
 		refreshToken := data["data_lake_refresh_token"].(string)
 		userName := data["data_lake_token_user_name"].(string)
 		displayName := data["data_lake_token_display_name"].(string)
 		accountName := data["data_lake_account_name"].(string)
 		tenantID := data["data_lake_tenant_id"].(string)
 		pathPrefix := data["data_lake_path_prefix"].(string)
-		dateFormat := data["data_lake_date_format"].(string)
-		timeFormat := data["data_lake_time_format"].(string)
 
 		result := streamanalytics.AzureDataLakeStoreOutputDataSource{
 			Type: streamanalytics.TypeMicrosoftDataLakeAccounts,
@@ -829,113 +869,84 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 				AccountName:            &accountName,
 				TenantID:               &tenantID,
 				FilePathPrefix:         &pathPrefix,
-				DateFormat:             &dateFormat,
-				TimeFormat:             &timeFormat,
 			},
+		}
+
+		if dateFormat := data["data_lake_date_format"].(string); len(dateFormat) > 0 {
+			result.AzureDataLakeStoreOutputDataSourceProperties.DateFormat = &dateFormat
+		}
+		if timeFormat := data["data_lake_time_format"].(string); len(timeFormat) > 0 {
+			result.AzureDataLakeStoreOutputDataSourceProperties.TimeFormat = &timeFormat
 		}
 
 		return &result, nil
 
 	case string(streamanalytics.TypeMicrosoftServiceBusEventHub):
-		namespace, err := extractAndValidateProp("service_bus_namespace")
-		if err != nil {
-			return nil, err
-		}
-		eventHub, err := extractAndValidateProp("eventhub_name")
-		if err != nil {
-			return nil, err
-		}
-		policyName, err := extractAndValidateProp("shared_access_policy_name")
-		if err != nil {
-			return nil, err
-		}
-		policyKey, err := extractAndValidateProp("shared_access_policy_key")
-		if err != nil {
-			return nil, err
-		}
-		partitionKey := extractOptionalProp("eventhub_partition_key")
+		namespace := data["service_bus_namespace"].(string)
+		eventHub := data["eventhub_name"].(string)
+		policyName := data["shared_access_policy_name"].(string)
+		policyKey := data["shared_access_policy_key"].(string)
 
 		result := streamanalytics.EventHubOutputDataSource{
 			Type: streamanalytics.TypeMicrosoftServiceBusEventHub,
 			EventHubOutputDataSourceProperties: &streamanalytics.EventHubOutputDataSourceProperties{
-				ServiceBusNamespace:    namespace,
-				SharedAccessPolicyName: policyName,
-				SharedAccessPolicyKey:  policyKey,
-				EventHubName:           eventHub,
-				PartitionKey:           partitionKey,
+				ServiceBusNamespace:    utils.String(namespace),
+				SharedAccessPolicyName: utils.String(policyName),
+				SharedAccessPolicyKey:  utils.String(policyKey),
+				EventHubName:           utils.String(eventHub),
 			},
+		}
+
+		if partitionKey := data["eventhub_partition_key"].(string); len(partitionKey) > 0 {
+			result.EventHubOutputDataSourceProperties.PartitionKey = &partitionKey
 		}
 
 		return &result, nil
 
 	case string(streamanalytics.TypeMicrosoftSQLServerDatabase):
-		databaseServer, err := extractAndValidateProp("database_server")
-		if err != nil {
-			return nil, err
-		}
-		databaseName, err := extractAndValidateProp("database_name")
-		if err != nil {
-			return nil, err
-		}
-		databaseTable, err := extractAndValidateProp("database_table")
-		if err != nil {
-			return nil, err
-		}
-		databaseUser, err := extractAndValidateProp("database_user")
-		if err != nil {
-			return nil, err
-		}
-		databasePassword, err := extractAndValidateProp("database_password")
-		if err != nil {
-			return nil, err
-		}
+		databaseServer := data["database_server"].(string)
+		databaseName := data["database_name"].(string)
+		databaseTable := data["database_table"].(string)
+		databaseUser := data["database_user"].(string)
+		databasePassword := data["database_password"].(string)
 
 		result := streamanalytics.AzureSQLDatabaseOutputDataSource{
 			Type: streamanalytics.TypeMicrosoftSQLServerDatabase,
 			AzureSQLDatabaseOutputDataSourceProperties: &streamanalytics.AzureSQLDatabaseOutputDataSourceProperties{
-				Server:   databaseServer,
-				Database: databaseName,
-				User:     databaseUser,
-				Password: databasePassword,
-				Table:    databaseTable,
+				Server:   utils.String(databaseServer),
+				Database: utils.String(databaseName),
+				User:     utils.String(databaseUser),
+				Password: utils.String(databasePassword),
+				Table:    utils.String(databaseTable),
 			},
 		}
 
 		return &result, nil
 
 	case string(streamanalytics.TypeMicrosoftStorageBlob):
-		accountName, err := extractAndValidateProp("storage_account_name")
-		if err != nil {
-			return nil, err
-		}
-		accountKey, err := extractAndValidateProp("storage_account_key")
-		if err != nil {
-			return nil, err
-		}
-		container, err := extractAndValidateProp("storage_container")
-		if err != nil {
-			return nil, err
-		}
-		pathPattern, err := extractAndValidateProp("storage_path_pattern")
-		if err != nil {
-			return nil, err
-		}
-		dateFormat := extractOptionalProp("storage_date_format")
-		timeFormat := extractOptionalProp("storage_time_format")
+		accountName := data["storage_account_name"].(string)
+		accountKey := data["storage_account_key"].(string)
+		container := data["storage_container"].(string)
+		pathPattern := data["storage_path_pattern"].(string)
 
 		accounts := make([]streamanalytics.StorageAccount, 1)
-		accounts[0].AccountName = accountName
-		accounts[0].AccountKey = accountKey
+		accounts[0].AccountName = utils.String(accountName)
+		accounts[0].AccountKey = utils.String(accountKey)
 
 		result := streamanalytics.BlobOutputDataSource{
 			Type: streamanalytics.TypeMicrosoftStorageBlob,
 			BlobOutputDataSourceProperties: &streamanalytics.BlobOutputDataSourceProperties{
 				StorageAccounts: &accounts,
-				Container:       container,
-				PathPattern:     pathPattern,
-				DateFormat:      dateFormat,
-				TimeFormat:      timeFormat,
+				Container:       utils.String(container),
+				PathPattern:     utils.String(pathPattern),
 			},
+		}
+
+		if dateFormat := data["storage_date_format"].(string); len(dateFormat) > 0 {
+			result.BlobOutputDataSourceProperties.DateFormat = &dateFormat
+		}
+		if timeFormat := data["storage_time_format"].(string); len(timeFormat) > 0 {
+			result.BlobOutputDataSourceProperties.TimeFormat = &timeFormat
 		}
 
 		return &result, nil
@@ -945,102 +956,60 @@ func parseArmStreamAnalyticsOutputDatasource(data map[string]interface{}) (strea
 	}
 }
 
-//TODO expand to handle non-string types
-//Include resource that is broken in error message
-func extractAndValidateRequiredProperty(props map[string]interface{}) func(string) (*string, error) {
-	return func(k string) (*string, error) {
-		value := props[k].(string)
-		if len(value) > 0 {
-			return utils.String(value), nil
-		}
-		return nil, fmt.Errorf("Missing value for required property `%s`", k)
+func expandStreamAnalyticsInputReferenceDatasource(data map[string]interface{}) (streamanalytics.BasicReferenceInputDataSource, error) {
+	// Calling this here until terraform supports validation of lists
+	_, es := validateInputDatasource(data, "input")
+	if len(es) > 0 {
+		return nil, es[0]
 	}
-}
 
-func extractOptionalProperty(props map[string]interface{}) func(string) *string {
-	return func(k string) *string {
-		value := props[k].(string)
-		if len(value) > 0 {
-			return utils.String(value)
-		}
-
-		return nil
-	}
-}
-
-func parseArmStreamAnalyticsReferenceDatasource(data map[string]interface{}) (streamanalytics.BasicReferenceInputDataSource, error) {
 	name := data["name"].(string)
 	datasource := data["datasource"].(string)
 
 	switch datasource {
 	case string(streamanalytics.TypeBasicReferenceInputDataSourceTypeMicrosoftStorageBlob):
-
-		if data["storage_account_name"] == nil {
-			return nil, fmt.Errorf("Reference input %s missing storage_account_name field", name)
-		}
 		accountName := data["storage_account_name"].(string)
-		if data["storage_account_key"] == nil {
-			return nil, fmt.Errorf("Reference input %s missing storage_account_key field", name)
-		}
 		accountKey := data["storage_account_key"].(string)
-
-		if data["storage_container"] == nil {
-			return nil, fmt.Errorf("Reference input %s missing storage_container field", name)
-		}
 		container := data["storage_container"].(string)
-
-		if data["storage_path_pattern"] == nil {
-			return nil, fmt.Errorf("Reference input %s missing storage_path_pattern field", name)
-		}
 		pathPattern := data["storage_path_pattern"].(string)
-		if data["storage_date_format"] == nil {
-			return nil, fmt.Errorf("Reference input %s missing storage_date_format field", name)
-		}
-		dateFormat := data["storage_date_format"].(string)
-		if data["storage_time_format"] == nil {
-			return nil, fmt.Errorf("Reference input %s missing storage_time_format field", name)
-		}
-		timeFormat := data["storage_time_format"].(string)
 
 		accounts := make([]streamanalytics.StorageAccount, 1)
 		accounts[0].AccountName = &accountName
 		accounts[0].AccountKey = &accountKey
 
-		return &streamanalytics.BlobReferenceInputDataSource{
+		result := streamanalytics.BlobReferenceInputDataSource{
 			Type: streamanalytics.TypeBasicReferenceInputDataSourceTypeMicrosoftStorageBlob,
 			BlobReferenceInputDataSourceProperties: &streamanalytics.BlobReferenceInputDataSourceProperties{
 				StorageAccounts: &accounts,
 				Container:       &container,
 				PathPattern:     &pathPattern,
-				DateFormat:      &dateFormat,
-				TimeFormat:      &timeFormat,
 			},
-		}, nil
+		}
 
+		if dateFormat := data["storage_date_format"].(string); len(dateFormat) > 0 {
+			result.BlobReferenceInputDataSourceProperties.DateFormat = &dateFormat
+		}
+		if timeFormat := data["storage_time_format"].(string); len(timeFormat) > 0 {
+			result.BlobReferenceInputDataSourceProperties.TimeFormat = &timeFormat
+		}
+
+		return &result, nil
 	default:
 		return nil, fmt.Errorf("Reference input %s has unknown datasource type: %q", name, datasource)
 	}
 }
 
-func parseArmStreamAnalyticsStreamDatasource(data map[string]interface{}) (streamanalytics.BasicStreamInputDataSource, error) {
-	name := data["name"].(string)
+func expandStreamAnalyticsInputStreamDatasource(data map[string]interface{}) (streamanalytics.BasicStreamInputDataSource, error) {
+	// Calling this here until terraform supports validation of lists
+	_, es := validateInputDatasource(data, "input")
+	if len(es) > 0 {
+		return nil, es[0]
+	}
+
 	datasource := data["datasource"].(string)
 
 	switch datasource {
 	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftDevicesIotHubs):
-		if data["iot_hub_namespace"] == nil {
-			return nil, fmt.Errorf("Input %s missing iot_hub_namespace field", name)
-		}
-		if data["iot_hub_endpoint"] == nil {
-			return nil, fmt.Errorf("Input %s missing iot_hub_endpoint field", name)
-		}
-		if data["shared_access_policy_name"] == nil {
-			return nil, fmt.Errorf("Input %s missing shared_access_policy_name field", name)
-		}
-		if data["shared_access_policy_key"] == nil {
-			return nil, fmt.Errorf("Input %s missing shared_access_policy_key field", name)
-		}
-
 		namespace := data["iot_hub_namespace"].(string)
 		endpoint := data["iot_hub_endpoint"].(string)
 		accessPolicyName := data["shared_access_policy_name"].(string)
@@ -1056,27 +1025,13 @@ func parseArmStreamAnalyticsStreamDatasource(data map[string]interface{}) (strea
 			},
 		}
 
-		if v := data["consumer_group_name"]; v != nil {
-			consumerGroupName := v.(string)
+		if consumerGroupName := data["consumer_group_name"].(string); len(consumerGroupName) > 0 {
 			result.IoTHubStreamInputDataSourceProperties.ConsumerGroupName = &consumerGroupName
 		}
 
 		return &result, nil
 
 	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftServiceBusEventHub):
-		if data["service_bus_namespace"] == nil {
-			return nil, fmt.Errorf("Input %s missing service_bus_namespace field", name)
-		}
-		if data["eventhub_name"] == nil {
-			return nil, fmt.Errorf("Input %s missing eventhub_name field", name)
-		}
-		if data["shared_access_policy_name"] == nil {
-			return nil, fmt.Errorf("Input %s missing shared_access_policy_name field", name)
-		}
-		if data["shared_access_policy_key"] == nil {
-			return nil, fmt.Errorf("Input %s missing shared_access_policy_key field", name)
-		}
-
 		serviceBusNamespace := data["service_bus_namespace"].(string)
 		eventHubName := data["eventhub_name"].(string)
 		accessPolicyName := data["shared_access_policy_name"].(string)
@@ -1092,47 +1047,52 @@ func parseArmStreamAnalyticsStreamDatasource(data map[string]interface{}) (strea
 			},
 		}
 
-		if v := data["consumer_group_name"]; v != nil {
-			consumerGroupName := v.(string)
+		if consumerGroupName := data["consumer_group_name"].(string); len(consumerGroupName) > 0 {
 			result.EventHubStreamInputDataSourceProperties.ConsumerGroupName = &consumerGroupName
 		}
 
 		return &result, nil
 
 	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftStorageBlob):
-		// TODO Doublecheck required fields, etc.
 		accountName := data["storage_account_name"].(string)
 		accountKey := data["storage_account_key"].(string)
 		container := data["storage_container"].(string)
 		pathPattern := data["storage_path_pattern"].(string)
-		dateFormat := data["storage_date_format"].(string)
-		timeFormat := data["storage_time_format"].(string)
-		partitionCount := int32(data["storage_source_partition_count"].(int))
 
 		accounts := make([]streamanalytics.StorageAccount, 1)
 		accounts[0].AccountName = &accountName
 		accounts[0].AccountKey = &accountKey
 
-		return &streamanalytics.BlobStreamInputDataSource{
+		result := streamanalytics.BlobStreamInputDataSource{
 			Type: streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftStorageBlob,
 			BlobStreamInputDataSourceProperties: &streamanalytics.BlobStreamInputDataSourceProperties{
-				StorageAccounts:      &accounts,
-				Container:            &container,
-				PathPattern:          &pathPattern,
-				DateFormat:           &dateFormat,
-				TimeFormat:           &timeFormat,
-				SourcePartitionCount: &partitionCount,
+				StorageAccounts: &accounts,
+				Container:       &container,
+				PathPattern:     &pathPattern,
 			},
-		}, nil
+		}
+
+		if dateFormat := data["storage_date_format"].(string); len(dateFormat) > 0 {
+			result.BlobStreamInputDataSourceProperties.DateFormat = &dateFormat
+		}
+		if timeFormat := data["storage_time_format"].(string); len(timeFormat) > 0 {
+			result.BlobStreamInputDataSourceProperties.TimeFormat = &timeFormat
+		}
+		if v := data["storage_source_partition_count"].(int); v > 0 {
+			partitionCount := int32(v)
+			result.BlobStreamInputDataSourceProperties.SourcePartitionCount = &partitionCount
+		}
+
+		return &result, nil
 
 	default:
 		return nil, fmt.Errorf("Unknown stream input datasource type: %q", datasource)
 	}
 }
 
-// Parse the serialization parameters out of an `input{...}` or `output{...}`
+// Expand the serialization parameters out of an `input{...}` or `output{...}`
 // section.
-func parseArmStreamAnalyticsSerialization(data map[string]interface{}) (streamanalytics.BasicSerialization, error) {
+func expandStreamAnalyticsSerialization(data map[string]interface{}) (streamanalytics.BasicSerialization, error) {
 	serialization := data["serialization"].(string)
 
 	switch strings.ToUpper(serialization) {
@@ -1142,10 +1102,10 @@ func parseArmStreamAnalyticsSerialization(data map[string]interface{}) (streaman
 		}, nil
 
 	case "JSON":
-		if data["json_format"] == nil {
+		if len(data["json_format"].(string)) == 0 {
 			return nil, fmt.Errorf("Serialization %s requires json_format field", serialization)
 		}
-		if data["encoding"] == nil {
+		if len(data["encoding"].(string)) == 0 {
 			return nil, fmt.Errorf("Serialization %s requires encoding field", serialization)
 		}
 
@@ -1161,10 +1121,10 @@ func parseArmStreamAnalyticsSerialization(data map[string]interface{}) (streaman
 		}, nil
 
 	case "CSV":
-		if data["delimiter"] == nil {
+		if len(data["delimiter"].(string)) == 0 {
 			return nil, fmt.Errorf("Serialization %s requires delimiter field", serialization)
 		}
-		if data["encoding"] == nil {
+		if len(data["encoding"].(string)) == 0 {
 			return nil, fmt.Errorf("Serialization %s requires encoding field", serialization)
 		}
 
@@ -1184,7 +1144,7 @@ func parseArmStreamAnalyticsSerialization(data map[string]interface{}) (streaman
 	}
 }
 
-func flattenAndSetArmStreamAnalyticsSerialization(d *map[string]interface{}, input streamanalytics.BasicSerialization) error {
+func flattenStreamAnalyticsSerialization(d *map[string]interface{}, input streamanalytics.BasicSerialization) error {
 	result := *d
 
 	if _, ok := input.AsAvroSerialization(); ok {
@@ -1214,7 +1174,7 @@ func flattenStreamAnalyticsJobInput(config *streamanalytics.Input) (map[string]i
 	if properties, ok := config.Properties.AsStreamInputProperties(); ok {
 		result["type"] = string(streamanalytics.TypeStream)
 
-		if err := flattenAndSetArmStreamAnalyticsSerialization(&result, properties.Serialization); err != nil {
+		if err := flattenStreamAnalyticsSerialization(&result, properties.Serialization); err != nil {
 			return nil, err
 		}
 
@@ -1251,7 +1211,7 @@ func flattenStreamAnalyticsJobInput(config *streamanalytics.Input) (map[string]i
 	} else if properties, ok := config.Properties.AsReferenceInputProperties(); ok {
 		result["type"] = string(streamanalytics.TypeReference)
 
-		if err := flattenAndSetArmStreamAnalyticsSerialization(&result, properties.Serialization); err != nil {
+		if err := flattenStreamAnalyticsSerialization(&result, properties.Serialization); err != nil {
 			return nil, err
 		}
 
@@ -1284,15 +1244,114 @@ func flattenStreamAnalyticsJobTransformation(config *streamanalytics.Transformat
 	result := make(map[string]interface{})
 
 	result["name"] = *config.Name
-
 	result["query"] = *config.Query
-
 	result["streaming_units"] = *config.StreamingUnits
 
 	return result, nil
 }
 
-func flattenStreamAnalyticsJobOutput(config *streamanalytics.Output) (*map[string]interface{}, error) {
+func flattenStreamAnalyticsJobOutput(outputs *[]streamanalytics.Output) ([]interface{}, error) {
+	log.Printf("[INFO] Parsing %d outputs: %+v", len(*outputs), *outputs)
+	flat := make([]interface{}, 0)
+
+	for _, output := range *outputs {
+		r := make(map[string]interface{})
+
+		if output.Name == nil {
+			return nil, fmt.Errorf("Received output with no name: %+v", output)
+		}
+		name := *output.Name
+		r["name"] = name
+
+		properties := *output.OutputProperties
+		if properties.Serialization != nil {
+			if err := flattenStreamAnalyticsSerialization(&r, properties.Serialization); err != nil {
+				return nil, fmt.Errorf("Nope") //TODO
+			}
+		}
+
+		if ds, ok := properties.Datasource.AsAzureDataLakeStoreOutputDataSource(); ok {
+			r["datasource"] = string(streamanalytics.TypeMicrosoftDataLakeAccounts)
+			props := ds.AzureDataLakeStoreOutputDataSourceProperties
+			r["data_lake_refresh_token"] = *props.RefreshToken
+			r["data_lake_token_user_name"] = *props.TokenUserPrincipalName
+			r["data_lake_token_display_name"] = *props.TokenUserDisplayName
+			r["data_lake_account_name"] = *props.AccountName
+			r["data_lake_tenant_id"] = *props.TenantID
+			r["data_lake_path_prefix"] = *props.FilePathPrefix
+			r["data_lake_date_format"] = *props.DateFormat
+			r["data_lake_time_format"] = *props.TimeFormat
+		} else if ds, ok := properties.Datasource.AsBlobOutputDataSource(); ok {
+			r["datasource"] = string(streamanalytics.TypeMicrosoftStorageBlob)
+			props := ds.BlobOutputDataSourceProperties
+			account := (*props.StorageAccounts)[0]
+			r["storage_account_name"] = *account.AccountName
+			if account.AccountKey != nil {
+				r["storage_account_key"] = *account.AccountKey
+			}
+			r["storage_container"] = *props.Container
+			r["storage_path_pattern"] = *props.PathPattern
+
+			if props.DateFormat != nil {
+				r["storage_date_format"] = *props.DateFormat
+			}
+			if props.TimeFormat != nil {
+				r["storage_time_format"] = *props.TimeFormat
+			}
+		} else if ds, ok := properties.Datasource.AsAzureSQLDatabaseOutputDataSource(); ok {
+			r["datasource"] = string(streamanalytics.TypeMicrosoftSQLServerDatabase)
+			props := ds.AzureSQLDatabaseOutputDataSourceProperties
+			r["database_server"] = *props.Server
+			r["database_name"] = *props.Database
+			r["database_table"] = *props.Table
+			r["database_user"] = *props.User
+			//result["database_password"] = *props.Password
+		} else if ds, ok := properties.Datasource.AsEventHubOutputDataSource(); ok {
+			r["datasource"] = string(streamanalytics.TypeMicrosoftServiceBusEventHub)
+			props := ds.EventHubOutputDataSourceProperties
+			r["shared_access_policy_name"] = *props.SharedAccessPolicyName
+			//r["shared_access_policy_key"] = *props.SharedAccessPolicyKey
+			r["service_bus_namespace"] = *props.ServiceBusNamespace
+			r["eventhub_name"] = *props.EventHubName
+
+			if props.PartitionKey != nil {
+				r["eventhub_partition_key"] = *props.PartitionKey
+			}
+		} else if _, ok := properties.Datasource.AsPowerBIOutputDataSource(); ok {
+			// Unsupported
+			return nil, fmt.Errorf("Output %s has unsupported datasource: %s",
+				name, streamanalytics.TypePowerBI)
+		} else if _, ok := properties.Datasource.AsServiceBusTopicOutputDataSource(); ok {
+			// Unsupported
+			return nil, fmt.Errorf("Output %s has unsupported datasource: %s",
+				name, streamanalytics.TypeMicrosoftServiceBusTopic)
+		} else if _, ok := properties.Datasource.AsServiceBusQueueOutputDataSource(); ok {
+			// Unsupported
+			return nil, fmt.Errorf("Output %s has unsupported datasource: %s",
+				name, streamanalytics.TypeMicrosoftServiceBusQueue)
+		} else if _, ok := properties.Datasource.AsDocumentDbOutputDataSource(); ok {
+			// Unsupported
+			return nil, fmt.Errorf("Output %s has unsupported datasource: %s",
+				name, streamanalytics.TypeMicrosoftStorageDocumentDB)
+		} else if _, ok := properties.Datasource.AsAzureTableOutputDataSource(); ok {
+			// Unsupported
+			return nil, fmt.Errorf("Output %s has unsupported datasource: %s",
+				name, streamanalytics.TypeMicrosoftStorageTable)
+		} else {
+			return nil, fmt.Errorf("Output %s has unknown datasource; expected %s, %s, %s, %s",
+				name,
+				streamanalytics.TypeMicrosoftDataLakeAccounts,
+				streamanalytics.TypeMicrosoftSQLServerDatabase,
+				streamanalytics.TypeMicrosoftServiceBusEventHub,
+				streamanalytics.TypeMicrosoftStorageBlob)
+		}
+		flat = append(flat, r)
+	}
+
+	return flat, nil
+}
+
+func oldFlattenStreamAnalyticsJobOutput(config *streamanalytics.Output) (*map[string]interface{}, error) {
 	result := make(map[string]interface{})
 
 	if config.Name == nil {
@@ -1302,9 +1361,8 @@ func flattenStreamAnalyticsJobOutput(config *streamanalytics.Output) (*map[strin
 	result["name"] = name
 
 	properties := *config.OutputProperties
-
-	if _, ok := properties.Datasource.AsAzureSQLDatabaseOutputDataSource(); !ok {
-		if err := flattenAndSetArmStreamAnalyticsSerialization(&result, properties.Serialization); err != nil {
+	if properties.Serialization != nil {
+		if err := flattenStreamAnalyticsSerialization(&result, properties.Serialization); err != nil {
 			return nil, fmt.Errorf("Nope")
 		}
 	}
@@ -1312,42 +1370,42 @@ func flattenStreamAnalyticsJobOutput(config *streamanalytics.Output) (*map[strin
 	if ds, ok := properties.Datasource.AsAzureDataLakeStoreOutputDataSource(); ok {
 		result["datasource"] = string(streamanalytics.TypeMicrosoftDataLakeAccounts)
 		props := ds.AzureDataLakeStoreOutputDataSourceProperties
-		result["data_lake_refresh_token"] = props.RefreshToken
-		result["data_lake_token_user_name"] = props.TokenUserPrincipalName
-		result["data_lake_token_display_name"] = props.TokenUserDisplayName
-		result["data_lake_account_name"] = props.AccountName
-		result["data_lake_tenant_id"] = props.TenantID
-		result["data_lake_path_prefix"] = props.FilePathPrefix
-		result["data_lake_date_format"] = props.DateFormat
-		result["data_lake_time_format"] = props.TimeFormat
+		result["data_lake_refresh_token"] = *props.RefreshToken
+		result["data_lake_token_user_name"] = *props.TokenUserPrincipalName
+		result["data_lake_token_display_name"] = *props.TokenUserDisplayName
+		result["data_lake_account_name"] = *props.AccountName
+		result["data_lake_tenant_id"] = *props.TenantID
+		result["data_lake_path_prefix"] = *props.FilePathPrefix
+		result["data_lake_date_format"] = *props.DateFormat
+		result["data_lake_time_format"] = *props.TimeFormat
 	} else if ds, ok := properties.Datasource.AsBlobOutputDataSource(); ok {
 		result["datasource"] = string(streamanalytics.TypeMicrosoftStorageBlob)
 		props := ds.BlobOutputDataSourceProperties
 		account := (*props.StorageAccounts)[0]
-		result["storage_account_name"] = account.AccountName
+		result["storage_account_name"] = *account.AccountName
 		if account.AccountKey != nil {
-			result["storage_account_key"] = account.AccountKey
+			result["storage_account_key"] = *account.AccountKey
 		}
-		result["storage_container"] = props.Container
-		result["storage_path_pattern"] = props.PathPattern
-		result["storage_date_format"] = props.DateFormat
-		result["storage_time_format"] = props.TimeFormat
+		result["storage_container"] = *props.Container
+		result["storage_path_pattern"] = *props.PathPattern
+		result["storage_date_format"] = *props.DateFormat
+		result["storage_time_format"] = *props.TimeFormat
 	} else if ds, ok := properties.Datasource.AsAzureSQLDatabaseOutputDataSource(); ok {
 		result["datasource"] = string(streamanalytics.TypeMicrosoftSQLServerDatabase)
 		props := ds.AzureSQLDatabaseOutputDataSourceProperties
-		result["database_server"] = props.Server
-		result["database_name"] = props.Database
-		result["database_table"] = props.Table
-		result["database_user"] = props.User
-		result["database_password"] = props.Password
+		result["database_server"] = *props.Server
+		result["database_name"] = *props.Database
+		result["database_table"] = *props.Table
+		result["database_user"] = *props.User
+		//result["database_password"] = *props.Password
 	} else if ds, ok := properties.Datasource.AsEventHubOutputDataSource(); ok {
 		result["datasource"] = string(streamanalytics.TypeMicrosoftServiceBusEventHub)
 		props := ds.EventHubOutputDataSourceProperties
-		result["shared_access_policy_name"] = props.SharedAccessPolicyName
-		result["shared_access_policy_key"] = props.SharedAccessPolicyKey
-		result["service_bus_namespace"] = props.ServiceBusNamespace
-		result["eventhub_name"] = props.EventHubName
-		result["eventhub_partition_key"] = props.PartitionKey
+		result["shared_access_policy_name"] = *props.SharedAccessPolicyName
+		result["shared_access_policy_key"] = *props.SharedAccessPolicyKey
+		result["service_bus_namespace"] = *props.ServiceBusNamespace
+		result["eventhub_name"] = *props.EventHubName
+		result["eventhub_partition_key"] = *props.PartitionKey
 	} else if _, ok := properties.Datasource.AsPowerBIOutputDataSource(); ok {
 		// Unsupported
 		return nil, fmt.Errorf("Output %s has unsupported datasource: %s",
@@ -1380,40 +1438,74 @@ func flattenStreamAnalyticsJobOutput(config *streamanalytics.Output) (*map[strin
 	return &result, nil
 }
 
-func validateInputType(v interface{}, k string) (ws []string, errors []error) {
-	value := v.(string)
-
-	switch value {
-	case string(streamanalytics.TypeReference):
-		return
-	case string(streamanalytics.TypeStream):
-		return
-	default:
-		errors = append(errors, fmt.Errorf("%s: Unknown input type: %q; must be %q or %q", k, value,
-			streamanalytics.TypeStream, streamanalytics.TypeReference))
-	}
+func validateInput(v interface{}, k string) (warnings []string, errors []error) {
+	ws, es := validateInputDatasource(v, k)
+	warnings = append(warnings, ws...)
+	errors = append(errors, es...)
 
 	return
 }
 
-func validateArmStreamAnalyticsInputDatasource(v interface{}, k string) (ws []string, errors []error) {
-	value := v.(string)
+func validateInputDatasource(v interface{}, k string) (ws []string, errors []error) {
+	data := v.(map[string]interface{})
 
-	switch value {
+	datasource := data["datasource"]
+	if datasource == nil {
+		errors = append(errors, fmt.Errorf("%s: datasource is a required field", k))
+		return
+	}
+
+	switch datasource.(string) {
+	// Same string constant for streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftStorageBlob
 	case string(streamanalytics.TypeBasicReferenceInputDataSourceTypeMicrosoftStorageBlob):
+		if len(data["storage_account_name"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: storage_account_name is required when using %s", k, datasource))
+		}
+		if len(data["storage_account_key"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: storage_account_key is required when using %s", k, datasource))
+		}
+		if len(data["storage_container"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: storage_container is required when using %s", k, datasource))
+		}
+		if len(data["storage_path_pattern"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: storage_path_pattern is required when using %s", k, datasource))
+		}
 		return
+
 	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftDevicesIotHubs):
+		if len(data["iot_hub_namespace"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: iot_hub_namespace is required when using %s", k, datasource))
+		}
+		if len(data["shared_access_policy_name"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: shared_access_policy_name is required when using %s", k, datasource))
+		}
+		if len(data["shared_access_policy_key"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: shared_access_policy_key is required when using %s", k, datasource))
+		}
 		return
+
 	case string(streamanalytics.TypeBasicStreamInputDataSourceTypeMicrosoftServiceBusEventHub):
+		if len(data["service_bus_namespace"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: service_bus_namespace is required when using %s", k, datasource))
+		}
+		if len(data["shared_access_policy_name"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: shared_access_policy_name is required when using %s", k, datasource))
+		}
+		if len(data["shared_access_policy_key"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: shared_access_policy_key is required when using %s", k, datasource))
+		}
+		if len(data["eventhub_name"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: eventhub_name is required when using %s", k, datasource))
+		}
 		return
 	default:
-		errors = append(errors, fmt.Errorf("Unknown input datasource: %q", value))
+		errors = append(errors, fmt.Errorf("%s: %s is not supported", k, datasource))
 	}
-
 	return
 }
 
-func validateArmStreamAnalyticsOutputDatasource(v interface{}, k string) (ws []string, errors []error) {
+// TODO remove this once all sources are supported. The schema ValidateFunc can then just validate StringInSlice
+func validateStreamAnalyticsOutputDatasource(v interface{}, k string) (ws []string, errors []error) {
 	value := v.(string)
 
 	switch value {
@@ -1442,92 +1534,7 @@ func validateArmStreamAnalyticsOutputDatasource(v interface{}, k string) (ws []s
 	return
 }
 
-func validateOutOfOrderPolicy(v interface{}, k string) (ws []string, errors []error) {
-	value := v.(string)
-
-	switch value {
-	case "adjust":
-		return
-	case "drop":
-		return
-	default:
-		errors = append(errors, fmt.Errorf("Unknown out of order policy: %q; expected adjust, drop", value))
-	}
-
-	return
-}
-
-func validateOutputErrorPolicy(v interface{}, k string) (ws []string, errors []error) {
-	value := v.(string)
-
-	switch value {
-	case "stop":
-		return
-	case "drop":
-		return
-	default:
-		errors = append(errors, fmt.Errorf("Unknown output error policy: %q; expected drop, stop", value))
-	}
-
-	return
-}
-
-func validateSerializationType(v interface{}, k string) (ws []string, errors []error) {
-	value := v.(string)
-
-	switch value {
-	case string(streamanalytics.TypeAvro):
-		return
-	case string(streamanalytics.TypeCsv):
-		return
-	case string(streamanalytics.TypeJSON):
-		return
-	default:
-		errors = append(errors, fmt.Errorf("Unknown serialization type: %q; expected %q, %q, %q", value,
-			streamanalytics.TypeAvro, streamanalytics.TypeCsv, streamanalytics.TypeJSON))
-	}
-
-	return
-}
-
-func validateEncoding(v interface{}, k string) (ws []string, errors []error) {
-	value := v.(string)
-
-	if v != "UTF8" {
-		errors = append(errors, fmt.Errorf("Unknown encoding: %q; expected UTF8", value))
-	}
-
-	return
-}
-
-func validateSku(v interface{}, k string) (ws []string, errors []error) {
-	value := v.(string)
-
-	switch value {
-	case "Standard":
-	default:
-		errors = append(errors, fmt.Errorf("Unknown SKU: %q; expected 'Standard'", value))
-	}
-	return
-}
-
-func validateOutputStartMode(v interface{}, k string) (ws []string, errors []error) {
-	value := v.(string)
-
-	switch value {
-	case string(streamanalytics.JobStartTime):
-	case string(streamanalytics.CustomTime):
-	case string(streamanalytics.LastOutputEventTime):
-	default:
-		errors = append(errors, fmt.Errorf("Unknown Output Start Mode: %q; expected %q, %q, %q", value,
-			streamanalytics.JobStartTime, streamanalytics.CustomTime, streamanalytics.LastOutputEventTime))
-	}
-
-	return
-}
-
 func validateOutput(v interface{}, k string) (warnings []string, errors []error) {
-
 	ws, es := validateOutputDatasource(v, k)
 	warnings = append(warnings, ws...)
 	errors = append(errors, es...)
@@ -1568,28 +1575,28 @@ func validateOutputDatasource(v interface{}, k string) (warnings []string, error
 
 	switch datasource.(string) {
 	case string(streamanalytics.TypeMicrosoftDataLakeAccounts):
-		if data["data_lake_refresh_token"] == nil {
+		if len(data["data_lake_refresh_token"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: data_lake_refresh_token is required when using %s", k, datasource))
 		}
-		if data["data_lake_token_user_name"] == nil {
+		if len(data["data_lake_token_user_name"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: data_lake_token_user_name is required when using %s", k, datasource))
 		}
-		if data["data_lake_token_display_name"] == nil {
+		if len(data["data_lake_token_display_name"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: data_lake_token_display_name is required when using %s", k, datasource))
 		}
-		if data["data_lake_account_name"] == nil {
+		if len(data["data_lake_account_name"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: data_lake_account_name is required when using %s", k, datasource))
 		}
-		if data["data_lake_tenant_id"] == nil {
+		if len(data["data_lake_tenant_id"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: data_lake_tenant_id is required when using %s", k, datasource))
 		}
-		if data["data_lake_path_prefix"] == nil {
+		if len(data["data_lake_path_prefix"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: data_lake_path_prefix is required when using %s", k, datasource))
 		}
-		if data["data_lake_date_format"] == nil {
+		if len(data["data_lake_date_format"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: data_lake_date_format is required when using %s", k, datasource))
 		}
-		if data["data_lake_time_format"] == nil {
+		if len(data["data_lake_time_format"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: data_lake_time_format is required when using %s", k, datasource))
 		}
 		ws, es := validateOutputSerialization(v, k)
@@ -1597,19 +1604,16 @@ func validateOutputDatasource(v interface{}, k string) (warnings []string, error
 		errors = append(errors, es...)
 
 	case string(streamanalytics.TypeMicrosoftServiceBusEventHub):
-		if data["service_bus_namespace"] == nil {
+		if len(data["service_bus_namespace"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: service_bus_namespace is required when using %s", k, datasource))
 		}
-		if data["eventhub_name"] == nil {
+		if len(data["eventhub_name"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: eventhub_name is required when using %s", k, datasource))
 		}
-		if data["eventhub_partition_key"] == nil {
-			errors = append(errors, fmt.Errorf("%s: eventhub_partition_key is required when using %s", k, datasource))
-		}
-		if data["shared_access_policy_name"] == nil {
+		if len(data["shared_access_policy_name"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: shared_access_policy_name is required when using %s", k, datasource))
 		}
-		if data["shared_access_policy_key"] == nil {
+		if len(data["shared_access_policy_key"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: shared_access_policy_key is required when using %s", k, datasource))
 		}
 		ws, es := validateOutputSerialization(v, k)
@@ -1617,21 +1621,37 @@ func validateOutputDatasource(v interface{}, k string) (warnings []string, error
 		errors = append(errors, es...)
 
 	case string(streamanalytics.TypeMicrosoftSQLServerDatabase):
-		if data["database_server"] == nil {
+		if len(data["database_server"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: database_server is required when using %s", k, datasource))
 		}
-		if data["database_name"] == nil {
+		if len(data["database_name"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: database_name is required when using %s", k, datasource))
 		}
-		if data["database_table"] == nil {
+		if len(data["database_table"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: database_table is required when using %s", k, datasource))
 		}
-		if data["database_user"] == nil {
+		if len(data["database_user"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: database_user is required when using %s", k, datasource))
 		}
-		if data["database_password"] == nil {
+		if len(data["database_password"].(string)) == 0 {
 			errors = append(errors, fmt.Errorf("%s: database_password is required when using %s", k, datasource))
 		}
+
+	case string(streamanalytics.TypeMicrosoftStorageBlob):
+		if len(data["storage_account_name"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: storage_account_name is required when using %s", k, datasource))
+		}
+		if len(data["storage_account_key"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: storage_account_key is required when using %s", k, datasource))
+		}
+		if len(data["storage_container"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: storage_container is required when using %s", k, datasource))
+		}
+		if len(data["storage_path_pattern"].(string)) == 0 {
+			errors = append(errors, fmt.Errorf("%s: storage_path_pattern is required when using %s", k, datasource))
+		}
+		return
+
 	default:
 		errors = append(errors, fmt.Errorf("%s: %s is not supported", k, datasource))
 	}
